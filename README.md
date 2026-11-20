@@ -135,7 +135,8 @@ Record a service as multitrack, then play it back through the mixer at home.
 You can record on the SQ to USB, or in Logic, GarageBand or Reaper over USB.
 
 ```bash
-# listen in real time, with the control panel (plays to your speakers or BlackHole)
+# listen in real time with the control panel (plays through the Mac's speakers/headphones;
+# add --output BlackHole to feed OBS instead)
 python -m fsm run --play "path/to/recording folder" --loop
 
 # or mix it straight to a file, for before/after comparisons

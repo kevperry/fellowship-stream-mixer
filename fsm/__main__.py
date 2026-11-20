@@ -28,6 +28,8 @@ def main(argv=None):
     p.add_argument("--play", metavar="PATH", help="multitrack file or folder to play instead of live input")
     p.add_argument("--loop", action="store_true", help="loop the --play recording")
     p.add_argument("--no-audio", action="store_true", help="with --play: don't use the sound card")
+    p.add_argument("--output", metavar="DEVICE",
+                   help="output device name or number (with --play the default is your Mac's speakers/headphones)")
     p.add_argument("--host", default="127.0.0.1",
                    help="use 0.0.0.0 to reach the control panel from a phone or iPad on the same network")
     p.add_argument("--port", type=int, default=8765)
@@ -87,11 +89,17 @@ def main(argv=None):
             webbrowser.open(url)
 
     try:
+        audio = dict(cfg["audio"])
         if args.play:
-            run_files(factory, FileSource(args.play, loop=args.loop), cfg["audio"], stop, ready,
+            # Practice: listen on the Mac's own output unless told otherwise.
+            audio["output_device"] = args.output
+            audio["output_channels"] = [1, 2]
+            run_files(factory, FileSource(args.play, loop=args.loop), audio, stop, ready,
                       play=not args.no_audio)
         else:
-            run_live(factory, cfg["audio"], stop, ready)
+            if args.output:
+                audio["output_device"] = args.output
+            run_live(factory, audio, stop, ready)
     finally:
         server.stop()
 
