@@ -73,17 +73,68 @@ def _candidate_folders(demos_dir: Path) -> list[Path]:
     for root in roots:
         if not root.is_dir():
             continue
-        if root != demos_dir or any(p.suffix.lower() == ".wav" for p in root.iterdir()):
+        if root != demos_dir or any(p.suffix.lower() in AUDIO_EXTS for p in root.iterdir()):
             out.append(root)
         out += sorted((d for d in root.iterdir() if d.is_dir()), key=lambda d: natural_key(d.name))
     return out
+
+
+AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".oga", ".opus"}
+_MP3_BITRATES = {  # kbps, MPEG-1 layer III and MPEG-2/2.5 layer III
+    1: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
+    2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+}
+_MP3_RATES = {3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000]}
+
+
+def mp3_info(path: Path) -> dict:
+    """Sample rate and duration of an MP3 from its first frame (and Xing/Info header if present)."""
+    data = path.read_bytes()[: 256 * 1024]
+    size = path.stat().st_size
+    pos = 0
+    if data[:3] == b"ID3" and len(data) >= 10:
+        tag = (data[6] << 21) | (data[7] << 14) | (data[8] << 7) | data[9]
+        pos = 10 + tag
+        if pos > len(data):
+            data = path.read_bytes()[: pos + 64 * 1024]
+    while pos + 4 <= len(data):
+        if data[pos] == 0xFF and (data[pos + 1] & 0xE0) == 0xE0:
+            ver = (data[pos + 1] >> 3) & 3          # 3 = MPEG1, 2 = MPEG2, 0 = MPEG2.5
+            layer = (data[pos + 1] >> 1) & 3       # 1 = layer III
+            br_i = data[pos + 2] >> 4
+            sr_i = (data[pos + 2] >> 2) & 3
+            if ver != 1 and layer == 1 and 0 < br_i < 15 and sr_i < 3:
+                rate = _MP3_RATES[ver][sr_i]
+                spf = 1152 if ver == 3 else 576
+                mono = (data[pos + 3] >> 6) == 3
+                side = (17 if mono else 32) if ver == 3 else (9 if mono else 17)
+                x = pos + 4 + side
+                if data[x:x + 4] in (b"Xing", b"Info") and data[x + 7] & 1:
+                    frames = struct.unpack(">I", data[x + 8:x + 12])[0]
+                    return {"rate": rate, "seconds": frames * spf / rate, "channels": 1 if mono else 2}
+                kbps = _MP3_BITRATES[1 if ver == 3 else 2][br_i]
+                return {"rate": rate, "seconds": (size - pos) * 8 / (kbps * 1000), "channels": 1 if mono else 2}
+        pos += 1
+    raise ValueError("not an MP3 file")
+
+
+def audio_info(path: Path) -> dict:
+    ext = path.suffix.lower()
+    if ext == ".wav":
+        return wav_info(path)
+    if ext == ".mp3":
+        info = mp3_info(path)
+        info["rate"] = 48000  # the browser decodes compressed files at 48 kHz
+        return info
+    return {"rate": 48000, "seconds": None, "channels": None}  # other formats: decoded by the browser
 
 
 def build(demos_dir: Path = DEMOS, quiet: bool = False) -> dict:
     demos, problems, total = [], [], 0
     if demos_dir.is_dir() or demos_dir == DEMOS:
         for folder in _candidate_folders(demos_dir):
-            wavs = sorted((p for p in folder.iterdir() if p.suffix.lower() == ".wav"), key=lambda p: natural_key(p.name))
+            wavs = sorted((p for p in folder.iterdir() if p.suffix.lower() in AUDIO_EXTS and p.is_file()),
+                          key=lambda p: natural_key(p.name))
             if not wavs:
                 continue
             meta = {}
@@ -95,7 +146,7 @@ def build(demos_dir: Path = DEMOS, quiet: bool = False) -> dict:
             tracks, seconds, rates, size = [], [], set(), 0
             for w in wavs:
                 try:
-                    info = wav_info(w)
+                    info = audio_info(w)
                 except (ValueError, struct.error) as e:
                     problems.append(f"{folder.name}/{w.name}: skipped ({e})")
                     continue
@@ -104,7 +155,8 @@ def build(demos_dir: Path = DEMOS, quiet: bool = False) -> dict:
                 if b > GIT_FILE_LIMIT:
                     problems.append(f"{folder.name}/{w.name} is {b / 2**20:.0f} MB — GitHub refuses files over 100 MB")
                 tracks.append(w.name)
-                seconds.append(info["seconds"])
+                if info["seconds"] is not None:
+                    seconds.append(info["seconds"])
                 rates.add(info["rate"])
             if not tracks:
                 continue
@@ -123,7 +175,7 @@ def build(demos_dir: Path = DEMOS, quiet: bool = False) -> dict:
                 "folder": folder.name,
                 "tracks": tracks,
                 "config": "config.json" if (folder / "config.json").is_file() else None,
-                "seconds": round(min(seconds), 1),
+                "seconds": round(min(seconds), 1) if seconds else None,
                 "rate": min(rates),
                 "megabytes": round(size / 2**20, 1),
             })

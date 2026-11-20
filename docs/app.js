@@ -1,6 +1,6 @@
 /* Practice page: load tracks, stream them to the mixer worklet, show the console. */
 /* global WavReader, naturalCompare, makeDemoTracks, fsmNormalize, fsmValidateChannel, fsmValidateMaster,
-   fsmGuessType, FSM_PRESETS, FSM_TYPE_ORDER, FSM_DEFAULT_AUDIO, FSM_KEYS, RemoteFile */
+   fsmGuessType, FSM_PRESETS, FSM_TYPE_ORDER, FSM_DEFAULT_AUDIO, FSM_KEYS, RemoteFile, openAudio, AUDIO_EXT, COMPRESSED_EXT */
 "use strict";
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -42,13 +42,20 @@ function remember() {
 async function loadFiles(fileList, opts = {}) {
   const err = $("#load-error");
   err.hidden = true;
-  const files = [...fileList].filter((f) => /\.wav$/i.test(f.name)).sort((a, b) => naturalCompare(a.name, b.name));
-  if (!files.length) { err.textContent = "No .wav files found. Export your tracks as WAV and try again."; err.hidden = false; return; }
+  const files = [...fileList].filter((f) => AUDIO_EXT.test(f.name)).sort((a, b) => naturalCompare(a.name, b.name));
+  if (!files.length) { err.textContent = "No audio files found. Use WAV or MP3 tracks and try again."; err.hidden = false; return; }
   try {
-    flash("Reading track headers…");
-    const readers = await Promise.all(files.map((f) => WavReader.open(f)));
+    const compressed = files.filter((f) => COMPRESSED_EXT.test(f.name)).length;
+    let done = 0;
+    flash(compressed ? `Decoding tracks… 0 of ${files.length}` : "Reading track headers…");
+    const readers = await Promise.all(files.map(async (f) => {
+      const r = await openAudio(f);
+      if (compressed) flash(`Decoding tracks… ${++done} of ${files.length}`);
+      return r;
+    }));
     const rates = [...new Set(readers.map((r) => r.rate))];
-    if (rates.length > 1) throw new Error(`All tracks must share one sample rate (found ${rates.join(", ")} Hz).`);
+    if (rates.length > 1) throw new Error(`All tracks must share one sample rate (found ${rates.join(", ")} Hz). ` +
+      "MP3s are played at 48 kHz, so mix them only with 48 kHz WAVs.");
     await stopAudio();
     state.readers = readers;
     state.rate = rates[0];
@@ -56,9 +63,9 @@ async function loadFiles(fileList, opts = {}) {
     state.channels = readers.reduce((a, r) => a + r.channels, 0);
     state.names = [];
     for (const r of readers) {
-      const base = r.name.replace(/\.wav$/i, "").replace(/^(track|trk|ch|channel)?\s*\d+\s*[-_. ]*\s*/i, "").trim();
+      const base = r.name.replace(AUDIO_EXT, "").replace(/^(track|trk|ch|channel)?\s*\d+\s*[-_. ]*\s*/i, "").trim();
       for (let c = 0; c < r.channels; c++) {
-        const nm = base || r.name.replace(/\.wav$/i, "");
+        const nm = base || r.name.replace(AUDIO_EXT, "");
         state.names.push(r.channels > 1 ? `${nm} ${c + 1}` : nm);
       }
     }
@@ -384,7 +391,10 @@ async function loadDemo(d, button) {
       try { config = await (await fetch(base + encodeURIComponent(d.config))).json(); }
       catch { /* the demo still works without its settings */ }
     }
-    const files = await Promise.all(d.tracks.map((t) => RemoteFile.open(base + encodeURIComponent(t), t)));
+    // WAVs stream with range requests; compressed tracks are fetched whole and decoded
+    const files = await Promise.all(d.tracks.map((t) => COMPRESSED_EXT.test(t)
+      ? { name: t, url: base + encodeURIComponent(t) }
+      : RemoteFile.open(base + encodeURIComponent(t), t)));
     await loadFiles(files, { config, remote: true, title: d.title });
   } catch (e) {
     err.textContent = `Couldn't open that demo: ${e.message}`; err.hidden = false; flash("Couldn't open the demo.");

@@ -133,9 +133,74 @@ class RemoteFile {
   }
 }
 
+/**
+ * MP3 / M4A / FLAC / OGG: the browser decodes the whole file up front (at 48 kHz),
+ * then this serves it with the same read() interface as WavReader.
+ */
+const DECODE_RATE = 48000;
+const COMPRESSED_EXT = /\.(mp3|m4a|aac|mp4|flac|ogg|oga|opus)$/i;
+const AUDIO_EXT = /\.(wav|mp3|m4a|aac|mp4|flac|ogg|oga|opus)$/i;
+
+class DecodedReader {
+  /** ``source`` is a File/Blob or a URL string. */
+  static async open(source, name) {
+    const r = new DecodedReader();
+    r.name = name || source.name;
+    let bytes;
+    if (typeof source === "string") {
+      const res = await fetch(source);
+      if (!res.ok) throw new Error(`${r.name}: couldn't download it (HTTP ${res.status})`);
+      bytes = await res.arrayBuffer();
+    } else {
+      bytes = await source.arrayBuffer();
+    }
+    const Ctx = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
+    const ctx = new Ctx(1, 1, DECODE_RATE);
+    let buf;
+    try {
+      buf = await new Promise((res, rej) => {
+        const p = ctx.decodeAudioData(bytes, res, rej);
+        if (p && p.then) p.then(res, rej);
+      });
+    } catch (e) {
+      throw new Error(`${r.name}: this browser can't read that file (try MP3 or WAV)`);
+    }
+    r.rate = buf.sampleRate;
+    r.channels = buf.numberOfChannels;
+    r.frames = buf.length;
+    r.duration = buf.duration;
+    r.data = Array.from({ length: r.channels }, (_, c) => buf.getChannelData(c));
+    // Many apps export a mono mic as a stereo file with identical sides: treat it as one channel.
+    if (r.channels === 2) {
+      const [L, R] = r.data;
+      let same = true;
+      for (let i = 0, step = Math.max(1, Math.floor(L.length / 20000)); i < L.length; i += step) {
+        if (Math.abs(L[i] - R[i]) > 1e-3) { same = false; break; }
+      }
+      if (same) { r.data = [L]; r.channels = 1; }
+    }
+    return r;
+  }
+
+  async read(start, frames) {
+    return this.data.map((d) => {
+      const out = new Float32Array(frames);
+      if (start < d.length) out.set(d.subarray(start, Math.min(d.length, start + frames)));
+      return out;
+    });
+  }
+}
+
+/** Opens any supported audio file (File, RemoteFile, or URL for compressed files). */
+async function openAudio(file) {
+  return COMPRESSED_EXT.test(file.name)
+    ? DecodedReader.open(file.url || file, file.name)
+    : WavReader.open(file);
+}
+
 /** Sort "Track 1, Track 2, … Track 10" the way people expect. */
 function naturalCompare(a, b) {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 }
 
-if (typeof module !== "undefined" && module.exports) module.exports = { WavReader, RemoteFile, naturalCompare };
+if (typeof module !== "undefined" && module.exports) module.exports = { WavReader, RemoteFile, DecodedReader, openAudio, naturalCompare, AUDIO_EXT, COMPRESSED_EXT };

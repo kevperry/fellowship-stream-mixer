@@ -32,7 +32,7 @@
   <section id="loader" class="loader card">
     <div id="drop" class="drop">
       <h2>Practise mixing your service</h2>
-      <p>Drop your multitrack <b>WAV</b> files here — one file per channel, or one multichannel file.
+      <p>Drop your multitrack <b>WAV</b> or <b>MP3</b> files here — one file per channel, or one multichannel file.
         Recordings from the SQ to USB, or exported from GarageBand, Logic or Reaper, all work.</p>
       <div class="loader-actions">
         <button id="pick-files" class="primary">Choose files</button>
@@ -41,7 +41,7 @@
       </div>
       <p class="muted small">Your audio stays on this computer — it is read straight from disk and never uploaded.
         Works best in Chrome, Edge or Safari on a laptop or desktop.</p>
-      <input type="file" id="files" accept=".wav,audio/wav,audio/x-wav" multiple hidden>
+      <input type="file" id="files" accept=".wav,.mp3,.m4a,.flac,.ogg,audio/*" multiple hidden>
       <input type="file" id="folder" webkitdirectory hidden>
       <p id="load-error" class="error" hidden></p>
     </div>

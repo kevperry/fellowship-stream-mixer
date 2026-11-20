@@ -65,3 +65,21 @@ def test_index_handles_uploaded_folders_without_metadata(tmp_path):
     assert d["title"] == "Easter Morning" and d["tracks"] == ["a.wav", "b.wav"] and d["seconds"] == 0.1
     assert d["config"] is None
     assert wav_info(demos / "easter_morning" / "a.wav")["rate"] == 48000
+
+
+def test_mp3_demos(tmp_path):
+    from fsm.demo_index import mp3_info
+    src = tmp_path / "rec"
+    src.mkdir()
+    t = np.arange(48000 * 6) / 48000
+    sf.write(src / "Track 1.wav", 0.2 * np.sin(2 * np.pi * 220 * t), 48000)
+    sf.write(src / "Track 2.mp3", 0.2 * np.sin(2 * np.pi * 330 * t), 48000, format="MP3")   # MP3 input works too
+    demos = tmp_path / "demos"
+    out = add_demo(src, "Mp3 Test", length="5", demos_dir=demos, mp3=True)
+    files = sorted(p.name for p in out.iterdir() if p.suffix == ".mp3")
+    assert files == ["01 Track 1.mp3", "02 Track 2.mp3"]
+    info = mp3_info(out / files[0])
+    assert info["rate"] == 48000 and abs(info["seconds"] - 5.0) < 0.1
+    [d] = json.loads((demos / "index.json").read_text())["demos"]
+    assert d["tracks"] == files and abs(d["seconds"] - 5.0) < 0.1 and d["rate"] == 48000
+    assert (out / files[0]).stat().st_size < 150_000   # ~160 kbps, far smaller than the 480 KB WAV

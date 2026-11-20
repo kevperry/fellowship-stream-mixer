@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-AUDIO_EXTS = {".wav", ".flac", ".aif", ".aiff", ".w64", ".caf"}
+AUDIO_EXTS = {".wav", ".flac", ".aif", ".aiff", ".w64", ".caf", ".mp3", ".ogg"}
 
 
 def _sd():

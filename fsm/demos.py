@@ -20,7 +20,7 @@ import numpy as np
 from . import config as cfgmod
 from .demo_index import DEMOS, WEB_UPLOAD_LIMIT, build
 
-AUDIO_EXTS = {".wav", ".flac", ".aif", ".aiff", ".w64", ".caf"}
+AUDIO_EXTS = {".wav", ".flac", ".aif", ".aiff", ".w64", ".caf", ".mp3", ".ogg"}
 
 
 def parse_time(s: str | None) -> float | None:
@@ -47,7 +47,7 @@ def _safe_name(text: str) -> str:
 
 def add_demo(source: str | Path, title: str, description: str = "", start: str | None = None,
              length: str | None = None, config_path: str | Path | None = None, skip_silent: bool = False,
-             rate: int = 48000, folder: str | None = None, overwrite: bool = False,
+             rate: int = 48000, folder: str | None = None, overwrite: bool = False, mp3: bool = False,
              demos_dir: Path = DEMOS) -> Path:
     import soundfile as sf
     from scipy.signal import resample_poly
@@ -99,8 +99,13 @@ def add_demo(source: str | Path, title: str, description: str = "", start: str |
                 skipped.append(label)
                 continue
             idx = len(written) + 1
-            name = f"{idx:02d} {_safe_name(label)}.wav"
-            sf.write(str(out_dir / name), np.clip(x, -1.0, 1.0), int(rate), subtype="PCM_16")
+            if mp3:   # ~160 kbps: about 1.2 MB per track per minute, a sixth the size of WAV
+                name = f"{idx:02d} {_safe_name(label)}.mp3"
+                sf.write(str(out_dir / name), np.clip(x, -1.0, 1.0), int(rate), format="MP3",
+                         bitrate_mode="CONSTANT", compression_level=0.5)
+            else:
+                name = f"{idx:02d} {_safe_name(label)}.wav"
+                sf.write(str(out_dir / name), np.clip(x, -1.0, 1.0), int(rate), subtype="PCM_16")
             size = (out_dir / name).stat().st_size
             if size > WEB_UPLOAD_LIMIT:
                 big.append((name, size))
@@ -124,8 +129,7 @@ def add_demo(source: str | Path, title: str, description: str = "", start: str |
         print(f"Left out silent tracks: {', '.join(skipped)}")
     for name, size in big:
         print(f"  note: {name} is {size / 2**20:.0f} MB — too big to upload through the GitHub website "
-              f"(25 MB limit), but fine with git. A shorter --length keeps every track under 25 MB "
-              f"(about 4 minutes).")
+              f"(25 MB limit), but fine with git. A shorter --length, or --mp3, keeps tracks under 25 MB.")
     result = build(demos_dir, quiet=True)
     for p in result["problems"]:
         print("  warning:", p)

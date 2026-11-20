@@ -144,7 +144,7 @@ settings**. Some tips:
 
 **https://kevperry.github.io/fellowship-stream-mixer/**
 
-Open the page, then drop in your multitrack WAV files or click **Try the demo**.
+Open the page, then drop in your multitrack WAV or MP3 files, or click **Try the demo**.
 It's the same mixer, running in the browser, with the same control panel plus
 play, pause, seek and loop. Your audio is read straight from your computer and
 never uploaded. Chrome, Edge or Safari on a laptop or desktop work best.
@@ -160,7 +160,7 @@ have permission to share, from the people on them and for the songs.
 # on the Mac: cut a 3-minute clip, convert it, keep your channel settings
 python -m fsm add-demo "path/to/recording" --title "Sunday worship" \
     --description "Opening song and welcome" --start 12:30 --length 3:00 \
-    --config config.json --skip-silent
+    --config config.json --skip-silent --mp3
 git add docs/demos && git commit -m "Add Sunday worship demo" && git push
 ```
 

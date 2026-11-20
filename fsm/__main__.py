@@ -51,6 +51,7 @@ def main(argv=None):
     p.add_argument("--skip-silent", action="store_true", help="leave out tracks with nothing on them")
     p.add_argument("--folder", help="folder name under docs/demos (default: made from the title)")
     p.add_argument("--replace", action="store_true", help="replace a demo that already has this folder name")
+    p.add_argument("--mp3", action="store_true", help="save tracks as MP3 (about 6x smaller than WAV)")
 
     sub.add_parser("demo-index", help="rebuild docs/demos/index.json after adding or removing demo files")
 
@@ -59,7 +60,7 @@ def main(argv=None):
     if args.cmd == "add-demo":
         from .demos import add_demo
         add_demo(args.input, args.title, args.description, args.start, args.length, args.config,
-                 args.skip_silent, folder=args.folder, overwrite=args.replace)
+                 args.skip_silent, folder=args.folder, overwrite=args.replace, mp3=args.mp3)
         print("Next: commit and push (or upload the folder on GitHub) to publish it.")
         return
 
