@@ -41,7 +41,32 @@ def main(argv=None):
     p.add_argument("--config", default="config.json")
     p.add_argument("--bypass", action="store_true", help="render the plain fader mix for comparison")
 
+    p = sub.add_parser("add-demo", help="add a short multitrack clip to the practice website's demo list")
+    p.add_argument("input", help="multichannel file or a folder of tracks")
+    p.add_argument("--title", required=True, help='name shown on the page, e.g. "Sunday worship"')
+    p.add_argument("--description", default="", help="one line shown under the title")
+    p.add_argument("--start", help="where the clip starts: seconds, m:ss or h:mm:ss (default: the beginning)")
+    p.add_argument("--length", help="how long the clip is, e.g. 3:00 (default: to the end)")
+    p.add_argument("--config", help="a config.json whose channel names/types/tune settings the demo should open with")
+    p.add_argument("--skip-silent", action="store_true", help="leave out tracks with nothing on them")
+    p.add_argument("--folder", help="folder name under docs/demos (default: made from the title)")
+    p.add_argument("--replace", action="store_true", help="replace a demo that already has this folder name")
+
+    sub.add_parser("demo-index", help="rebuild docs/demos/index.json after adding or removing demo files")
+
     args = ap.parse_args(argv)
+
+    if args.cmd == "add-demo":
+        from .demos import add_demo
+        add_demo(args.input, args.title, args.description, args.start, args.length, args.config,
+                 args.skip_silent, folder=args.folder, overwrite=args.replace)
+        print("Next: commit and push (or upload the folder on GitHub) to publish it.")
+        return
+
+    if args.cmd == "demo-index":
+        from .demo_index import build
+        build()
+        return
 
     if args.cmd == "devices":
         from .audio_io import list_devices

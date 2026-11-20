@@ -1,6 +1,6 @@
 /* Practice page: load tracks, stream them to the mixer worklet, show the console. */
 /* global WavReader, naturalCompare, makeDemoTracks, fsmNormalize, fsmValidateChannel, fsmValidateMaster,
-   fsmGuessType, FSM_PRESETS, FSM_TYPE_ORDER, FSM_DEFAULT_AUDIO, FSM_KEYS */
+   fsmGuessType, FSM_PRESETS, FSM_TYPE_ORDER, FSM_DEFAULT_AUDIO, FSM_KEYS, RemoteFile */
 "use strict";
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -13,7 +13,7 @@ const fmtTime = (s) => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s 
 
 const types = FSM_TYPE_ORDER.map((id) => ({ id, label: FSM_PRESETS[id].label, reverb_db: FSM_PRESETS[id].reverb_db }));
 const state = {
-  readers: [], rate: 0, frames: 0, channels: 0, names: [],
+  readers: [], rate: 0, frames: 0, channels: 0, names: [], remote: false,
   cfg: null, ctx: null, node: null, playing: false,
   readPos: 0, generation: 0, reading: false, seeking: false, key: "",
 };
@@ -39,7 +39,7 @@ function remember() {
 }
 
 // ------------------------------------------------------------------ loading
-async function loadFiles(fileList) {
+async function loadFiles(fileList, opts = {}) {
   const err = $("#load-error");
   err.hidden = true;
   const files = [...fileList].filter((f) => /\.wav$/i.test(f.name)).sort((a, b) => naturalCompare(a.name, b.name));
@@ -66,6 +66,8 @@ async function loadFiles(fileList) {
     state.key = "fsm:" + readers.map((r) => `${r.name}/${r.channels}`).join("|");
     const saved = store.get(state.key);
     state.cfg = saved && saved.channels && saved.channels.length === state.channels ? fsmNormalize(saved) : defaultConfig();
+    if (!saved && opts.config) applyConfig(opts.config);
+    state.remote = !!opts.remote;
     state.readPos = 0;
     $("#loader").hidden = true;
     $("#transport").hidden = false;
@@ -75,7 +77,8 @@ async function loadFiles(fileList) {
     $("#info").textContent = `${state.channels} tracks · ${state.rate / 1000} kHz`;
     setTime(0);
     build();
-    flash(saved ? "Loaded — your settings for these tracks were restored. Press play." : "Loaded. Check each channel's type, then press play.");
+    flash(saved ? "Loaded — your settings for these tracks were restored. Press play."
+      : opts.config ? `Loaded “${opts.title}”. Press play.` : "Loaded. Check each channel's type, then press play.");
   } catch (e) {
     err.textContent = e.message; err.hidden = false; flash("Couldn't load those files.");
   }
@@ -135,7 +138,7 @@ async function feed() {
   state.reading = true;
   const gen = state.generation;
   try {
-    const frames = Math.round(state.rate * 0.5);
+    const frames = Math.round(state.rate * (state.remote ? 1.0 : 0.5));
     const start = state.readPos;
     const parts = await Promise.all(state.readers.map((r) => r.read(start, frames)));
     if (gen !== state.generation || !state.node) return;
@@ -357,6 +360,66 @@ $("#pick-files").addEventListener("click", () => $("#files").click());
 $("#pick-folder").addEventListener("click", () => $("#folder").click());
 $("#files").addEventListener("change", (e) => loadFiles(e.target.files));
 $("#folder").addEventListener("change", (e) => loadFiles(e.target.files));
+// ---- demo recordings published on the website (docs/demos/index.json)
+function applyConfig(cfg) {
+  const c = fsmNormalize(cfg);
+  const byInput = new Map(c.channels.map((ch) => [ch.input, ch]));
+  state.cfg.channels = state.cfg.channels.map((ch) => {
+    const src = byInput.get(ch.input);
+    return src ? Object.assign({}, ch, src, { input: ch.input, solo: false }) : ch;
+  });
+  state.cfg.master = Object.assign({}, state.cfg.master, c.master, { bypass: false });
+}
+
+async function loadDemo(d, button) {
+  const err = $("#load-error");
+  err.hidden = true;
+  const label = button.querySelector("b").textContent;
+  button.disabled = true;
+  try {
+    flash(`Opening “${d.title}”…`);
+    const base = `demos/${encodeURIComponent(d.folder)}/`;
+    let config = null;
+    if (d.config) {
+      try { config = await (await fetch(base + encodeURIComponent(d.config))).json(); }
+      catch { /* the demo still works without its settings */ }
+    }
+    const files = await Promise.all(d.tracks.map((t) => RemoteFile.open(base + encodeURIComponent(t), t)));
+    await loadFiles(files, { config, remote: true, title: d.title });
+  } catch (e) {
+    err.textContent = `Couldn't open that demo: ${e.message}`; err.hidden = false; flash("Couldn't open the demo.");
+  } finally {
+    button.disabled = false;
+    button.querySelector("b").textContent = label;
+  }
+}
+
+async function listDemos() {
+  let index;
+  try {
+    const res = await fetch("demos/index.json", { cache: "no-cache" });
+    if (!res.ok) return;
+    index = await res.json();
+  } catch { return; }
+  const demos = (index && index.demos) || [];
+  if (!demos.length) return;
+  const host = $("#demo-cards");
+  host.innerHTML = "";
+  for (const d of demos) {
+    const b = document.createElement("button");
+    b.className = "demo-card";
+    const mins = Math.floor(d.seconds / 60), secs = String(Math.round(d.seconds % 60)).padStart(2, "0");
+    b.innerHTML = "<b></b><span class=\"muted small\"></span><span class=\"desc\"></span>";
+    b.querySelector("b").textContent = d.title;
+    b.querySelector(".muted").textContent = `${d.tracks.length} tracks · ${mins}:${secs} · ${Math.round(d.rate / 1000)} kHz`;
+    b.querySelector(".desc").textContent = d.description || "";
+    b.addEventListener("click", () => loadDemo(d, b));
+    host.appendChild(b);
+  }
+  $("#demo-list").hidden = false;
+}
+listDemos();
+
 $("#demo").addEventListener("click", () => { flash("Building the demo…"); setTimeout(() => loadFiles(makeDemoTracks()), 20); });
 
 const drop = $("#drop");

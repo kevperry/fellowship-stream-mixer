@@ -82,9 +82,60 @@ class WavReader {
   }
 }
 
+/**
+ * A File-like object for a WAV on the website. Reads only the bytes it needs with
+ * HTTP range requests, so demos start playing without downloading every track.
+ * If the server ignores ranges, it falls back to downloading the whole file once.
+ */
+class RemoteFile {
+  constructor(url, name) { this.url = url; this.name = name; }
+
+  static async open(url, name) {
+    const f = new RemoteFile(url, name);
+    const res = await fetch(url, { headers: { Range: "bytes=0-65535" } });
+    if (res.status === 206) {
+      const cr = res.headers.get("Content-Range") || "";
+      f.head = await res.arrayBuffer();
+      f.size = Number(cr.split("/")[1]);
+      if (!Number.isFinite(f.size)) { f.size = undefined; }
+    }
+    if (res.status === 200 || (res.status === 206 && f.size === undefined)) {
+      // no usable range support: take the whole file
+      const full = res.status === 200 ? res : await fetch(url);
+      f.whole = await full.arrayBuffer();
+      f.size = f.whole.byteLength;
+    } else if (res.status !== 206) {
+      throw new Error(`${name}: couldn't download it (HTTP ${res.status})`);
+    }
+    return f;
+  }
+
+  slice(a, b) {
+    a = Math.max(0, a); b = Math.min(this.size, b);
+    return {
+      arrayBuffer: async () => {
+        if (b <= a) return new ArrayBuffer(0);
+        if (this.whole) return this.whole.slice(a, b);
+        if (this.head && b <= this.head.byteLength) return this.head.slice(a, b);
+        for (let attempt = 0; ; attempt++) {
+          try {
+            const res = await fetch(this.url, { headers: { Range: `bytes=${a}-${b - 1}` } });
+            if (res.status === 206) return await res.arrayBuffer();
+            if (res.ok) { this.whole = await res.arrayBuffer(); return this.whole.slice(a, b); }
+            throw new Error(`HTTP ${res.status}`);
+          } catch (e) {
+            if (attempt >= 2) throw new Error(`${this.name}: download failed (${e.message})`);
+            await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+          }
+        }
+      },
+    };
+  }
+}
+
 /** Sort "Track 1, Track 2, … Track 10" the way people expect. */
 function naturalCompare(a, b) {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 }
 
-if (typeof module !== "undefined" && module.exports) module.exports = { WavReader, naturalCompare };
+if (typeof module !== "undefined" && module.exports) module.exports = { WavReader, RemoteFile, naturalCompare };

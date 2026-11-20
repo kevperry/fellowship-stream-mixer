@@ -149,6 +149,30 @@ It's the same mixer, running in the browser, with the same control panel plus
 play, pause, seek and loop. Your audio is read straight from your computer and
 never uploaded. Chrome, Edge or Safari on a laptop or desktop work best.
 
+### Publishing your own demo recordings
+
+Short clips you put in `docs/demos/` appear on the page under **Demo
+recordings**, for anyone to play. They open with their own channel settings
+and stream from the website. They're public, so publish only recordings you
+have permission to share, from the people on them and for the songs.
+
+```bash
+# on the Mac: cut a 3-minute clip, convert it, keep your channel settings
+python -m fsm add-demo "path/to/recording" --title "Sunday worship" \
+    --description "Opening song and welcome" --start 12:30 --length 3:00 \
+    --config config.json --skip-silent
+git add docs/demos && git commit -m "Add Sunday worship demo" && git push
+```
+
+You can also skip the Mac. On GitHub, open `docs/demos`, choose **Add file →
+Upload files**, and drag in a folder of WAV files (25 MB per file, about 4
+minutes of 16‑bit 48 kHz). The demo list rebuilds when the site publishes. See
+`docs/demos/README.md` for the details and size limits; keep all demos together
+under about 900 MB.
+
+The site is published by `.github/workflows/pages.yml`. In the repository's
+**Settings → Pages**, set **Source** to **GitHub Actions**.
+
 When the mix sounds right, use **Settings → Download settings**. Put the file in
 the project folder on the Mac as `config.json`, and the live mixer starts from
 those settings on Sunday. Channel *n* in the recording becomes input *n* on the
