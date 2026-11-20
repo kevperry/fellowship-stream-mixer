@@ -24,7 +24,7 @@ async function api(path, body) {
 
 function setChannel(i, changes) {
   api("/api/channel", { index: i, changes })
-    .then((ch) => { cfg.channels[i] = ch; renderStripStatic(i); })
+    .then((r) => { for (const u of r.updated) { cfg.channels[u.index] = u.channel; renderStripStatic(u.index); } })
     .catch((e) => flash(e.message));
 }
 function setMaster(changes) {

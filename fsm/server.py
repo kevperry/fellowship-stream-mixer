@@ -75,7 +75,9 @@ class ControlServer:
                         idx = int(body["index"])
                         if not 0 <= idx < len(eng.strips):
                             raise ValueError("no such channel")
-                        return self._json(200, _finite(eng.update_channel(idx, body["changes"])))
+                        changed = eng.update_channel(idx, body["changes"])
+                        return self._json(200, _finite({"updated": [{"index": k, "channel": c}
+                                                                    for k, c in changed.items()]}))
                     if path == "/api/clear_solo":
                         eng.clear_solo()
                         return self._json(200, {"ok": True})

@@ -113,7 +113,12 @@ settings**. Some tips:
 - Use **Lead vocal** for the worship leader. Lead vocals are *not* ducked, and
   they don't duck the band, so singing over the band works as expected.
 - For a stereo pair, such as keys L/R, playback L/R or overheads, tick **Link** on
-  the right‑hand channel. Both sides then move together.
+  the right‑hand channel. It then works like a stereo pair on a console: moving
+  either **fader** moves both, and mute, input trim, reverb send, source type and
+  Tune are shared too. **Pan** and the name stay separate, so each side can sit
+  where it belongs. Ticking Link copies the left channel's settings onto the
+  right. The automatic mixing also moves the pair together, so the stereo image
+  stays put. Soloing either side solos both.
 - Set any channel you don't use to **Off**.
 
 ## During a service
@@ -214,7 +219,7 @@ are read in name order, so `Track 1, Track 2, … Track 10`.
 | `channels[].fader_db`, `mute`, `pan`, `trim_db` | Usual channel controls. `trim_db` adjusts input level before processing. |
 | `channels[].reverb_db` | Reverb send; `null` uses the source type's default. |
 | `channels[].ducks_music` | Override whether this mic ducks the music (`true`/`false`/`null`). |
-| `channels[].link` | Stereo‑link with the channel before it. |
+| `channels[].link` | Stereo‑link with the channel before it: faders, mute, trim, reverb, type and Tune are shared; pan is not. |
 | `channels[].tune`, `tune_amount`, `tune_speed_ms` | Pitch correction on/off (vocal types only), strength 0–100 %, and speed in ms (10–500). |
 | `master.tune_key` | `"chromatic"` or a key such as `"G major"`, `"E minor"`, `"Bb major"`. |
 

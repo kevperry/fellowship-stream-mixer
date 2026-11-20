@@ -41,6 +41,50 @@ GATE_OPEN_ABOVE_FLOOR = 10.0
 GATE_CLOSE_ABOVE_FLOOR = 6.0
 NOISE_WINDOW_S = 20
 
+# Settings that a stereo-linked pair shares (everything except pan, name, solo).
+GANGED = ("fader_db", "mute", "trim_db", "reverb_db", "type", "tune", "tune_amount",
+          "tune_speed_ms", "ducks_music")
+
+
+def link_group(channels: list, index: int) -> range:
+    """Indices of the run of channels stereo-linked with ``index``."""
+    lo = index
+    while lo > 0 and channels[lo].get("link"):
+        lo -= 1
+    hi = index
+    while hi + 1 < len(channels) and channels[hi + 1].get("link"):
+        hi += 1
+    return range(lo, hi + 1)
+
+
+def gang(channels: list, index: int, changes: dict) -> list[int]:
+    """Apply validated ``changes`` to channel ``index`` and its linked partners.
+
+    Returns the indices that changed. Ticking Link copies the left channel's
+    settings onto the newly linked one; after that, ganged settings move together.
+    """
+    ch = dict(channels[index])
+    ch.update(changes)
+    if ch.get("link") and index == 0:
+        ch["link"] = False
+    channels[index] = ch
+    updated = {index}
+    group = link_group(channels, index)
+    if changes.get("link") and index > 0:
+        src = channels[group[0]]
+        for k in group:
+            if k != group[0]:
+                channels[k] = {**channels[k], **{g: src[g] for g in GANGED if g in src}}
+                updated.add(k)
+    else:
+        shared = {k: v for k, v in changes.items() if k in GANGED}
+        if shared:
+            for k in group:
+                if k != index:
+                    channels[k] = {**channels[k], **shared}
+                    updated.add(k)
+    return sorted(updated)
+
 
 def _clip(v, lo, hi):
     return lo if v < lo else hi if v > hi else v
@@ -219,14 +263,13 @@ class Engine:
 
     # ---- thread-safe control API (called from the UI thread) ----------
     def update_channel(self, index: int, changes: dict) -> dict:
+        """Change one channel (and its stereo-linked partner). Returns {index: channel} of all changed."""
         with self._lock:
-            ch = dict(self.cfg["channels"][index])
-            ch.update(_validate_channel_changes(changes))
-            if ch.get("link") and index == 0:
-                ch["link"] = False
-            self.cfg["channels"][index] = ch
-            self._pending.put(("channel", index, dict(ch)))
-            return ch
+            chans = self.cfg["channels"]
+            updated = gang(chans, index, _validate_channel_changes(changes))
+            for k in updated:
+                self._pending.put(("channel", k, dict(chans[k])))
+            return {k: dict(chans[k]) for k in updated}
 
     def clear_solo(self) -> None:
         for i, ch in enumerate(self.cfg["channels"]):

@@ -594,11 +594,9 @@ class Engine {
   }
 
   updateChannel(i, changes) {
-    const ch = Object.assign({}, this.cfg.channels[i], fsmValidateChannel(changes));
-    if (ch.link && i === 0) ch.link = false;
-    this.cfg.channels[i] = ch;
-    this.strips[i].configure(ch);
-    return ch;
+    const updated = fsmGang(this.cfg.channels, i, fsmValidateChannel(changes));
+    for (const k of updated) this.strips[k].configure(this.cfg.channels[k]);
+    return this.cfg.channels[i];
   }
   clearSolo() {
     this.cfg.channels.forEach((ch, i) => { if (ch.solo) this.updateChannel(i, { solo: false }); });
@@ -783,6 +781,47 @@ class Engine {
   }
 }
 
+// ---------------------------------------------------------------- stereo link
+
+/** Settings a stereo-linked pair shares (everything except pan, name, solo). */
+const FSM_GANGED = ["fader_db", "mute", "trim_db", "reverb_db", "type", "tune", "tune_amount",
+  "tune_speed_ms", "ducks_music"];
+
+function fsmLinkGroup(channels, index) {
+  let lo = index, hi = index;
+  while (lo > 0 && channels[lo].link) lo--;
+  while (hi + 1 < channels.length && channels[hi + 1].link) hi++;
+  const out = [];
+  for (let k = lo; k <= hi; k++) out.push(k);
+  return out;
+}
+
+/** Apply validated changes to a channel and its linked partners; returns the changed indices. */
+function fsmGang(channels, index, changes) {
+  const ch = Object.assign({}, channels[index], changes);
+  if (ch.link && index === 0) ch.link = false;
+  channels[index] = ch;
+  const updated = new Set([index]);
+  const group = fsmLinkGroup(channels, index);
+  if (changes.link && index > 0) {
+    const src = channels[group[0]];
+    for (const k of group) {
+      if (k === group[0]) continue;
+      const copy = {};
+      for (const g of FSM_GANGED) if (g in src) copy[g] = src[g];
+      channels[k] = Object.assign({}, channels[k], copy);
+      updated.add(k);
+    }
+  } else {
+    const shared = {};
+    for (const [k, v] of Object.entries(changes)) if (FSM_GANGED.includes(k)) shared[k] = v;
+    if (Object.keys(shared).length) {
+      for (const k of group) if (k !== index) { channels[k] = Object.assign({}, channels[k], shared); updated.add(k); }
+    }
+  }
+  return [...updated].sort((a, b) => a - b);
+}
+
 // ---------------------------------------------------------------- config helpers
 
 function fsmNum(v, lo, hi) {
@@ -841,6 +880,11 @@ function fsmNormalize(cfg) {
     c.solo = false; // solo never survives a reload
     out.channels.push(c);
   });
+  // a stereo-linked channel shares its left partner's settings (except pan, name, solo)
+  out.channels.forEach((c, i) => {
+    if (i === 0) { c.link = false; return; }
+    if (c.link) for (const g of FSM_GANGED) c[g] = out.channels[i - 1][g];
+  });
   return out;
 }
 
@@ -863,6 +907,6 @@ if (typeof AudioWorkletGlobalScope !== "undefined") {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { PitchCorrector, fsmScaleNotes, fsmNoteName, FSM_KEYS, Engine, Limiter, Reverb, LoudnessMeter, FilterChain, biquad, fft, db2lin, lin2db,
+  module.exports = { fsmGang, fsmLinkGroup, FSM_GANGED, PitchCorrector, fsmScaleNotes, fsmNoteName, FSM_KEYS, Engine, Limiter, Reverb, LoudnessMeter, FilterChain, biquad, fft, db2lin, lin2db,
     fsmBlockSize, fsmNormalize, fsmGuessType, FSM_PRESETS, FSM_TYPE_ORDER, FSM_CHANNEL_DEFAULTS };
 }

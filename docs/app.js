@@ -1,6 +1,6 @@
 /* Practice page: load tracks, stream them to the mixer worklet, show the console. */
 /* global WavReader, naturalCompare, makeDemoTracks, fsmNormalize, fsmValidateChannel, fsmValidateMaster,
-   fsmGuessType, FSM_PRESETS, FSM_TYPE_ORDER, FSM_DEFAULT_AUDIO, FSM_KEYS, RemoteFile, openAudio, AUDIO_EXT, COMPRESSED_EXT */
+   fsmGuessType, fsmGang, FSM_PRESETS, FSM_TYPE_ORDER, FSM_DEFAULT_AUDIO, FSM_KEYS, RemoteFile, openAudio, AUDIO_EXT, COMPRESSED_EXT */
 "use strict";
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -190,11 +190,9 @@ async function setPlaying(on) {
 // ------------------------------------------------------------------ settings
 function setChannel(i, changes) {
   try {
-    const ch = Object.assign({}, state.cfg.channels[i], fsmValidateChannel(changes));
-    if (ch.link && i === 0) ch.link = false;
-    state.cfg.channels[i] = ch;
+    const updated = fsmGang(state.cfg.channels, i, fsmValidateChannel(changes));
     if (state.node) state.node.port.postMessage({ type: "channel", index: i, changes });
-    renderStripStatic(i);
+    for (const k of updated) renderStripStatic(k);
     remember();
   } catch (e) { flash(e.message); }
 }
@@ -230,7 +228,8 @@ async function importConfig(file) {
     state.cfg.channels.forEach((ch, i) => {
       const src = byInput.get(ch.input);
       if (!src) return;
-      const { input, ...rest } = src;
+      const { input, link, ...rest } = src;
+      if (link !== undefined) setChannel(i, { link });
       setChannel(i, rest);
     });
     const { bypass, ...m } = cfg.master;

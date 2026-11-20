@@ -296,3 +296,34 @@ def test_tune_in_the_engine_only_on_vocals_and_switches_cleanly():
     with pytest.raises(ValueError):
         eng.update_master({"tune_key": "H major"})
     eng.update_master({"tune_key": "G major"})
+
+
+# ---- stereo link gangs faders and settings -----------------------------------
+
+def test_link_gangs_faders_and_settings_but_not_pan():
+    chans = [cfgmod.channel(input=1, name="Keys L", type="instrument", pan=-1, fader_db=-3),
+             cfgmod.channel(input=2, name="Keys R", type="instrument", pan=1, fader_db=2),
+             cfgmod.channel(input=3, name="Bass", type="instrument")]
+    eng = Engine(cfgmod.normalize({"channels": chans}), FS, BLOCK)
+    changed = eng.update_channel(1, {"link": True})            # R takes L's settings
+    assert set(changed) == {1} and changed[1]["fader_db"] == -3 and changed[1]["pan"] == 1
+    changed = eng.update_channel(1, {"fader_db": -7.5})        # move either fader: both move
+    assert set(changed) == {0, 1}
+    changed = eng.update_channel(0, {"mute": True, "reverb_db": -20, "pan": -0.5, "name": "Keys left"})
+    c0, c1, c2 = eng.snapshot_config()["channels"]
+    assert c0["fader_db"] == c1["fader_db"] == -7.5 and c0["mute"] and c1["mute"]
+    assert c1["reverb_db"] == -20 and c1["pan"] == 1 and c1["name"] == "Keys R"
+    assert c2["fader_db"] == 0 and not c2["mute"]               # unlinked neighbour untouched
+    eng.update_channel(1, {"link": False})
+    eng.update_channel(1, {"fader_db": 0})
+    assert eng.snapshot_config()["channels"][0]["fader_db"] == -7.5
+    run(eng, np.zeros((BLOCK * 2, 3)))                          # pending strip updates apply cleanly
+    assert eng.strips[0].mute and eng.strips[1].fader_db == 0
+
+
+def test_loading_a_config_lines_up_linked_pairs():
+    cfg = cfgmod.normalize({"channels": [
+        cfgmod.channel(input=1, type="playback", fader_db=-4, pan=-1, link=True),   # first can't link
+        cfgmod.channel(input=2, type="instrument", fader_db=3, pan=1, link=True)]})
+    c0, c1 = cfg["channels"]
+    assert c0["link"] is False and c1["type"] == "playback" and c1["fader_db"] == -4 and c1["pan"] == 1

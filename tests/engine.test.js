@@ -255,3 +255,22 @@ test("solo in place with linked pairs, and tune only on vocals", () => {
   assert.equal(E.fsmNormalize({ channels: [{ type: "speech", solo: true }] }).channels[0].solo, false);
   assert.throws(() => eng.updateMaster({ tune_key: "H major" }));
 });
+
+test("link gangs faders and settings but not pan", () => {
+  const chans = [{ input: 1, name: "Keys L", type: "instrument", pan: -1, fader_db: -3 },
+    { input: 2, name: "Keys R", type: "instrument", pan: 1, fader_db: 2 }, { input: 3, name: "Bass", type: "instrument" }];
+  const eng = new E.Engine({ channels: chans }, FS, BLOCK);
+  eng.updateChannel(1, { link: true });
+  assert.equal(eng.cfg.channels[1].fader_db, -3);
+  eng.updateChannel(1, { fader_db: -7.5 });
+  eng.updateChannel(0, { mute: true, pan: -0.5 });
+  const [a, b, c] = eng.cfg.channels;
+  assert.ok(a.fader_db === -7.5 && b.fader_db === -7.5 && a.mute && b.mute && eng.strips[1].mute);
+  assert.equal(b.pan, 1); assert.equal(c.fader_db, 0);
+  // the page keeps its own copy of the settings and uses the same rule
+  const page = JSON.parse(JSON.stringify(eng.cfg.channels));
+  assert.deepEqual(E.fsmGang(page, 0, { fader_db: 4 }), [0, 1]);
+  assert.equal(page[1].fader_db, 4);
+  const loaded = E.fsmNormalize({ channels: [{ type: "playback", fader_db: -4, link: true }, { type: "instrument", fader_db: 3, pan: 1, link: true }] }).channels;
+  assert.ok(!loaded[0].link && loaded[1].type === "playback" && loaded[1].fader_db === -4 && loaded[1].pan === 1);
+});

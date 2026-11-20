@@ -102,6 +102,16 @@ def normalize(cfg: dict) -> dict:
         c["pan"] = max(-1.0, min(1.0, float(c["pan"])))
         c["solo"] = False  # solo never survives a restart
         out["channels"].append(c)
+    # a stereo-linked channel shares its left partner's settings (except pan, name, solo)
+    from .engine import GANGED
+    for i in range(1, len(out["channels"])):
+        if out["channels"][i]["link"]:
+            left = out["channels"][i - 1]
+            out["channels"][i].update({g: left[g] for g in GANGED})
+        elif i == 0:
+            out["channels"][i]["link"] = False
+    if out["channels"]:
+        out["channels"][0]["link"] = False
     from .pitch import KEYS
     if out["master"]["tune_key"] not in KEYS:
         raise ValueError(f"master.tune_key must be one of: {', '.join(KEYS)}")
