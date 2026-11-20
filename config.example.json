@@ -1,0 +1,215 @@
+{
+  "audio": {
+    "input_device": "SQ",
+    "output_device": "BlackHole",
+    "output_channels": [
+      1,
+      2
+    ],
+    "sample_rate": null,
+    "block_ms": 10.0
+  },
+  "master": {
+    "target_lufs": -16.0,
+    "ceiling_db": -1.0,
+    "ducking": "auto",
+    "duck_depth_db": -9.0,
+    "reverb_return_db": 0.0,
+    "output_trim_db": 0.0,
+    "bypass": false
+  },
+  "channels": [
+    {
+      "name": "Pastor",
+      "type": "speech",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.0,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 1
+    },
+    {
+      "name": "Pulpit",
+      "type": "speech",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.0,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 2
+    },
+    {
+      "name": "Worship leader",
+      "type": "lead_vocal",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.0,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 3
+    },
+    {
+      "name": "BGV 1",
+      "type": "bg_vocal",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": -0.4,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 4
+    },
+    {
+      "name": "BGV 2",
+      "type": "bg_vocal",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.4,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 5
+    },
+    {
+      "name": "Acoustic",
+      "type": "instrument",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": -0.3,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 6
+    },
+    {
+      "name": "Keys L",
+      "type": "instrument",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": -0.7,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 7
+    },
+    {
+      "name": "Keys R",
+      "type": "instrument",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.7,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": true,
+      "input": 8
+    },
+    {
+      "name": "Bass",
+      "type": "instrument",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.0,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 9
+    },
+    {
+      "name": "Elec gtr",
+      "type": "instrument",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.35,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 10
+    },
+    {
+      "name": "Kick",
+      "type": "drums",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.0,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 11
+    },
+    {
+      "name": "Snare",
+      "type": "drums",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.0,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 12
+    },
+    {
+      "name": "OH L",
+      "type": "drums",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": -0.6,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 13
+    },
+    {
+      "name": "OH R",
+      "type": "drums",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 0.6,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": true,
+      "input": 14
+    },
+    {
+      "name": "Playback L",
+      "type": "playback",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": -1.0,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": false,
+      "input": 15
+    },
+    {
+      "name": "Playback R",
+      "type": "playback",
+      "trim_db": 0.0,
+      "fader_db": 0.0,
+      "mute": false,
+      "pan": 1.0,
+      "reverb_db": null,
+      "ducks_music": null,
+      "link": true,
+      "input": 16
+    }
+  ]
+}

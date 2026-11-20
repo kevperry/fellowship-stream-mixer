@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fellowship Stream Mixer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <div>
+      <h1>Fellowship Stream Mixer</h1>
+      <p id="status" class="muted">Connecting…</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button id="bypass" class="toggle on" title="Compare the automatic mix with a plain fader mix">Auto mix: ON</button>
+    <button id="save" class="ghost">Save settings</button>
+  </div>
+</header>
+
+<main>
+  <section class="master card" aria-label="Stream output">
+    <div class="loud">
+      <div class="loud-label">Stream loudness</div>
+      <div class="loud-value"><span id="lufs">–</span><small>LUFS</small></div>
+      <div class="muted" id="lufs-sub">target –16</div>
+    </div>
+    <div class="master-meters">
+      <div class="meter wide"><div class="fill" id="mL"></div><span>L</span></div>
+      <div class="meter wide"><div class="fill" id="mR"></div><span>R</span></div>
+    </div>
+    <div class="master-controls">
+      <label>Target
+        <select id="target">
+          <option value="-14">–14 LUFS (loud, YouTube)</option>
+          <option value="-16">–16 LUFS (recommended)</option>
+          <option value="-18">–18 LUFS (relaxed)</option>
+          <option value="-23">–23 LUFS (broadcast)</option>
+        </select>
+      </label>
+      <label>Music ducking
+        <select id="ducking">
+          <option value="auto">Auto — music steps back for speech</option>
+          <option value="off">Off (worship set)</option>
+        </select>
+      </label>
+      <label>Duck depth <output id="duckv"></output>
+        <input type="range" id="duck" min="-20" max="0" step="1">
+      </label>
+      <label>Reverb return <output id="rvv"></output>
+        <input type="range" id="rv" min="-24" max="6" step="1">
+      </label>
+    </div>
+    <div class="master-readouts">
+      <div class="pill" id="speech">Music level normal</div>
+      <div class="stat"><span>Loudness gain</span><b id="agc">0.0 dB</b></div>
+      <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
+      <div class="stat"><span>Processing load</span><b id="load">–</b></div>
+    </div>
+  </section>
+
+  <section class="strips" id="strips" aria-label="Channels"></section>
+
+  <p class="hint muted">Tag each channel once with what's plugged into it. The mixer rides levels,
+    gates idle mics, shares gain between speech mics and ducks music under speech. You keep the faders,
+    mutes, pan and reverb. The “auto” figure on each strip is how much the mixer is adjusting it right now.</p>
+</main>
+
+<template id="strip-tpl">
+  <div class="strip card">
+    <div class="strip-head">
+      <span class="num"></span>
+      <span class="led" title="Active"></span>
+    </div>
+    <input class="name" maxlength="32" aria-label="Channel name">
+    <select class="type" aria-label="Source type"></select>
+    <div class="strip-body">
+      <div class="meters">
+        <div class="meter"><div class="fill in"></div></div>
+        <div class="meter"><div class="fill out"></div></div>
+      </div>
+      <div class="fader-wrap">
+        <input type="range" class="fader" min="-40" max="10" step="0.5" aria-label="Fader">
+        <output class="fader-v"></output>
+      </div>
+    </div>
+    <div class="auto" title="">auto <b>0.0</b></div>
+    <label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.05"></label>
+    <label class="mini rvl">Reverb <input type="range" class="reverb" min="-40" max="0" step="1"></label>
+    <div class="row">
+      <button class="mute">Mute</button>
+      <label class="link" title="Stereo-link with the channel to the left"><input type="checkbox" class="linkbox"> Link</label>
+    </div>
+  </div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
