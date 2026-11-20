@@ -63,10 +63,26 @@ def wav_info(path: Path) -> dict:
                 f.seek(size + (size & 1), 1)
 
 
+def _candidate_folders(demos_dir: Path) -> list[Path]:
+    """docs/demos/* subfolders, plus WAVs placed straight into docs/demos or docs/demo
+    (or docs/demo/* subfolders), since uploads through the website often land there."""
+    out = []
+    roots = [demos_dir]
+    if demos_dir == DEMOS:
+        roots.append(DEMOS.parent / "demo")
+    for root in roots:
+        if not root.is_dir():
+            continue
+        if root != demos_dir or any(p.suffix.lower() == ".wav" for p in root.iterdir()):
+            out.append(root)
+        out += sorted((d for d in root.iterdir() if d.is_dir()), key=lambda d: natural_key(d.name))
+    return out
+
+
 def build(demos_dir: Path = DEMOS, quiet: bool = False) -> dict:
     demos, problems, total = [], [], 0
-    if demos_dir.is_dir():
-        for folder in sorted((d for d in demos_dir.iterdir() if d.is_dir()), key=lambda d: natural_key(d.name)):
+    if demos_dir.is_dir() or demos_dir == DEMOS:
+        for folder in _candidate_folders(demos_dir):
             wavs = sorted((p for p in folder.iterdir() if p.suffix.lower() == ".wav"), key=lambda p: natural_key(p.name))
             if not wavs:
                 continue
@@ -95,8 +111,13 @@ def build(demos_dir: Path = DEMOS, quiet: bool = False) -> dict:
             if len(rates) > 1:
                 problems.append(f"{folder.name}: tracks have different sample rates {sorted(rates)}; the page will refuse it")
             total += size
+            try:
+                rel = folder.relative_to(demos_dir.parent).as_posix()
+            except ValueError:
+                rel = folder.name
             demos.append({
-                "id": folder.name,
+                "id": rel.replace("/", "-"),
+                "path": rel,
                 "title": str(meta.get("title") or folder.name.replace("-", " ").replace("_", " ").title()),
                 "description": str(meta.get("description") or ""),
                 "folder": folder.name,

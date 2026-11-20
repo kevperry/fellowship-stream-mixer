@@ -374,11 +374,11 @@ function applyConfig(cfg) {
 async function loadDemo(d, button) {
   const err = $("#load-error");
   err.hidden = true;
-  const label = button.querySelector("b").textContent;
   button.disabled = true;
   try {
     flash(`Opening “${d.title}”…`);
-    const base = `demos/${encodeURIComponent(d.folder)}/`;
+    const rel = d.path || `demos/${d.folder}`;
+    const base = rel.split("/").map(encodeURIComponent).join("/") + "/";
     let config = null;
     if (d.config) {
       try { config = await (await fetch(base + encodeURIComponent(d.config))).json(); }
@@ -390,9 +390,10 @@ async function loadDemo(d, button) {
     err.textContent = `Couldn't open that demo: ${e.message}`; err.hidden = false; flash("Couldn't open the demo.");
   } finally {
     button.disabled = false;
-    button.querySelector("b").textContent = label;
   }
 }
+
+let publishedDemos = [];
 
 async function listDemos() {
   let index;
@@ -402,7 +403,11 @@ async function listDemos() {
     index = await res.json();
   } catch { return; }
   const demos = (index && index.demos) || [];
+  publishedDemos = demos;
   if (!demos.length) return;
+  // the first published recording becomes "Try the demo"; any others are listed below
+  $("#demo").title = `Opens “${demos[0].title}”`;
+  if (demos.length < 2) return;
   const host = $("#demo-cards");
   host.innerHTML = "";
   for (const d of demos) {
@@ -420,7 +425,11 @@ async function listDemos() {
 }
 listDemos();
 
-$("#demo").addEventListener("click", () => { flash("Building the demo…"); setTimeout(() => loadFiles(makeDemoTracks()), 20); });
+$("#demo").addEventListener("click", (e) => {
+  if (publishedDemos.length) { loadDemo(publishedDemos[0], e.currentTarget); return; }
+  flash("Building the demo…");
+  setTimeout(() => loadFiles(makeDemoTracks()), 20);
+});
 
 const drop = $("#drop");
 drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
