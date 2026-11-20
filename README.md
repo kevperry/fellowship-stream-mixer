@@ -129,7 +129,24 @@ settings**. Some tips:
   Anyone on that network can then change the mix, so use it on the church's
   private network only.
 
-## Practise without the desk
+## Practise in your browser (no install)
+
+**https://kevperry.github.io/fellowship-stream-mixer/**
+
+Open the page, then drop in your multitrack WAV files or click **Try the demo**.
+It's the same mixer, running in the browser, with the same control panel plus
+play, pause, seek and loop. Your audio is read straight from your computer and
+never uploaded. Chrome, Edge or Safari on a laptop or desktop work best.
+
+When the mix sounds right, use **Settings → Download settings**. Put the file in
+the project folder on the Mac as `config.json`, and the live mixer starts from
+those settings on Sunday. Channel *n* in the recording becomes input *n* on the
+desk, so record with channel 1 on track 1, and so on.
+
+The page lives in `docs/`. `docs/engine.js` is a JavaScript port of the Python
+engine; a test checks that their source‑type presets stay identical.
+
+## Practise on the Mac without the desk
 
 Record a service as multitrack, then play it back through the mixer at home.
 You can record on the SQ to USB, or in Logic, GarageBand or Reaper over USB.
@@ -187,7 +204,8 @@ want to adjust it.
 
 ```bash
 pip install pytest
-python -m pytest -q
+python -m pytest -q                              # Python engine
+node --test tests/engine.test.js tests/wav.test.js   # browser engine + WAV reader
 ```
 
 The tests use synthetic speech, music and room noise to check the following:

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fellowship Stream Mixer — Practice</title>
+<meta name="description" content="Practise automatic livestream mixing in your browser with a multitrack recording of your service. Nothing is uploaded.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <div>
+      <h1>Fellowship Stream Mixer <span class="tag">Practice</span></h1>
+      <p id="status" class="muted">Load a multitrack recording to begin.</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button id="bypass" class="toggle on" title="Compare the automatic mix with a plain fader mix" disabled>Auto mix: ON</button>
+    <button id="menu-btn" class="ghost" aria-haspopup="true" aria-expanded="false">Settings ▾</button>
+    <div id="menu" class="menu card" hidden>
+      <button id="export">Download settings (config.json)</button>
+      <button id="import">Load settings…</button>
+      <button id="change">Load different tracks…</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="loader" class="loader card">
+    <div id="drop" class="drop">
+      <h2>Practise mixing your service</h2>
+      <p>Drop your multitrack <b>WAV</b> files here — one file per channel, or one multichannel file.
+        Recordings from the SQ to USB, or exported from GarageBand, Logic or Reaper, all work.</p>
+      <div class="loader-actions">
+        <button id="pick-files" class="primary">Choose files</button>
+        <button id="pick-folder">Choose a folder</button>
+        <button id="demo" class="ghost">Try the demo</button>
+      </div>
+      <p class="muted small">Your audio stays on this computer — it is read straight from disk and never uploaded.
+        Works best in Chrome, Edge or Safari on a laptop or desktop.</p>
+      <input type="file" id="files" accept=".wav,audio/wav,audio/x-wav" multiple hidden>
+      <input type="file" id="folder" webkitdirectory hidden>
+      <p id="load-error" class="error" hidden></p>
+    </div>
+  </section>
+
+  <section id="transport" class="transport card" hidden>
+    <button id="play" class="play" aria-label="Play">▶</button>
+    <span id="time" class="time">0:00</span>
+    <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Position">
+    <span id="duration" class="time muted">0:00</span>
+    <label class="loop"><input type="checkbox" id="loop"> Loop</label>
+    <span id="info" class="muted small"></span>
+  </section>
+
+  <div id="mixer" hidden>
+    <section class="master card" aria-label="Stream output">
+      <div class="loud">
+        <div class="loud-label">Stream loudness</div>
+        <div class="loud-value"><span id="lufs">–</span><small>LUFS</small></div>
+        <div class="muted" id="lufs-sub">target –16</div>
+      </div>
+      <div class="master-meters">
+        <div class="meter wide"><div class="fill" id="mL"></div><span>L</span></div>
+        <div class="meter wide"><div class="fill" id="mR"></div><span>R</span></div>
+      </div>
+      <div class="master-controls">
+        <label>Target
+          <select id="target">
+            <option value="-14">–14 LUFS (loud, YouTube)</option>
+            <option value="-16">–16 LUFS (recommended)</option>
+            <option value="-18">–18 LUFS (relaxed)</option>
+            <option value="-23">–23 LUFS (broadcast)</option>
+          </select>
+        </label>
+        <label>Music ducking
+          <select id="ducking">
+            <option value="auto">Auto — music steps back for speech</option>
+            <option value="off">Off (worship set)</option>
+          </select>
+        </label>
+        <label>Duck depth <output id="duckv"></output>
+          <input type="range" id="duck" min="-20" max="0" step="1">
+        </label>
+        <label>Reverb return <output id="rvv"></output>
+          <input type="range" id="rv" min="-24" max="6" step="1">
+        </label>
+      </div>
+      <div class="master-readouts">
+        <div class="pill" id="speech">Music level normal</div>
+        <div class="stat"><span>Loudness gain</span><b id="agc">0.0 dB</b></div>
+        <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
+        <div class="stat"><span>Processing load</span><b id="load">–</b></div>
+      </div>
+    </section>
+
+    <section class="strips" id="strips" aria-label="Channels"></section>
+
+    <p class="hint muted">Tag each channel with what's plugged into it, then press play. Flip <b>Auto mix</b> to hear
+      the difference against a plain fader mix. When it sounds right, use <b>Settings → Download settings</b> and put
+      the file next to the Mac app as <code>config.json</code> — your Sunday mix starts from here.
+      The “auto” figure on each strip is how much the mixer is adjusting it right now; hover it for the breakdown.</p>
+  </div>
+</main>
+
+<template id="strip-tpl">
+  <div class="strip card">
+    <div class="strip-head">
+      <span class="num"></span>
+      <span class="led" title="Active"></span>
+    </div>
+    <input class="name" maxlength="32" aria-label="Channel name">
+    <select class="type" aria-label="Source type"></select>
+    <div class="strip-body">
+      <div class="meters">
+        <div class="meter"><div class="fill in"></div></div>
+        <div class="meter"><div class="fill out"></div></div>
+      </div>
+      <div class="fader-wrap">
+        <input type="range" class="fader" min="-40" max="10" step="0.5" aria-label="Fader">
+        <output class="fader-v"></output>
+      </div>
+    </div>
+    <div class="auto" title="">auto <b>0.0</b></div>
+    <label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.05"></label>
+    <label class="mini rvl">Reverb <input type="range" class="reverb" min="-40" max="0" step="1"></label>
+    <div class="row">
+      <button class="mute">Mute</button>
+      <label class="link" title="Stereo-link with the channel to the left"><input type="checkbox" class="linkbox"> Link</label>
+    </div>
+  </div>
+</template>
+
+<script src="engine.js"></script>
+<script src="wav.js"></script>
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
