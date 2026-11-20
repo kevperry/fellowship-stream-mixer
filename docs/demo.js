@@ -20,6 +20,7 @@ function makeDemoTracks() {
 
   const keysL = new Float32Array(n), keysR = new Float32Array(n), bass = new Float32Array(n);
   const vox = room(-64), pastor = room(-66), pulpit = room(-63);
+  let voxPhase = 0;
   for (let i = 0; i < n; i++) {
     const t = i / fs, worship = i < split;
     const ch = chordAt(t);
@@ -30,12 +31,15 @@ function makeDemoTracks() {
     if (worship) {
       const nb = (t % 0.5) / 0.5;
       bass[i] = 0.18 * Math.exp(-3 * nb) * Math.sin(2 * Math.PI * ch[0] / 2 * t);
-      const note = melody[Math.floor(t / 0.75) % melody.length];
+      // a real singer drifts a little sharp or flat on some notes (for the Tune demo)
+      const ni = Math.floor(t / 0.75) % melody.length;
+      const note = melody[ni] * Math.pow(2, [0, 28, -22, 15, 0, -30, 20, 0, -18, 25, -12, 0][ni] / 1200);
       const ph = (t % 0.75) / 0.75;
       const a = Math.min(1, ph * 12) * (ph < 0.9 ? 1 : (1 - ph) * 10);
-      const f = note * (1 + 0.006 * Math.sin(2 * Math.PI * 5.5 * t));
+      const f = note * (1 + 0.006 * Math.sin(2 * Math.PI * 5.5 * t)); // gentle vibrato
+      voxPhase += 2 * Math.PI * f / fs;                                   // integrate the phase
       let v = 0;
-      for (let h = 1; h <= 6; h++) v += Math.sin(2 * Math.PI * f * h * t) / (h * h);
+      for (let h = 1; h <= 6; h++) v += Math.sin(voxPhase * h) / (h * h);
       vox[i] += 0.12 * a * v;
     }
   }

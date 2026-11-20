@@ -185,3 +185,73 @@ test("16 channels at 96 kHz run inside real time", () => {
   console.log(`  16 ch @ 96 kHz: ${per.toFixed(2)} ms per ${(1000 * block / fs).toFixed(1)} ms block`);
   assert.ok(per < 1000 * block / fs * 0.6);
 });
+
+// ---- solo and pitch correction -------------------------------------------------
+
+function sung(freq, seconds, level = 0.1) {
+  const n = Math.floor(seconds * FS), x = new Float64Array(n), room = noise(seconds, -66, 21);
+  for (let i = 0; i < n; i++) {
+    let v = 0;
+    for (let h = 1; h <= 7; h++) v += Math.sin(2 * Math.PI * freq * h * i / FS) / h;
+    x[i] = v * level + room[i];
+  }
+  return x;
+}
+function centsOf(y, ref) {
+  // measure with a fresh corrector's detector (amount 0 leaves the signal alone)
+  const pc = new E.PitchCorrector(FS, BLOCK);
+  let f = null;
+  for (let i = y.length - 20 * BLOCK; i + BLOCK <= y.length; i += BLOCK) { pc.process(y.subarray(i, i + BLOCK), true, 0, 40, E.fsmScaleNotes("chromatic")); f = pc.f0 || f; }
+  return 1200 * Math.log2(f / ref);
+}
+function tune(x, amount, key = "chromatic") {
+  const pc = new E.PitchCorrector(FS, BLOCK), y = new Float64Array(x.length);
+  for (let i = 0; i + BLOCK <= x.length; i += BLOCK) y.set(pc.process(x.subarray(i, i + BLOCK), true, amount, 40, E.fsmScaleNotes(key)), i);
+  return { y, pc };
+}
+
+test("pitch correction amounts", () => {
+  const x = sung(440 * Math.pow(2, 30 / 1200), 2);
+  assert.ok(Math.abs(centsOf(x, 440) - 30) < 2);
+  for (const [amount, expect] of [[1, 0], [0.5, 15], [0, 30]]) {
+    const c = centsOf(tune(x, amount).y, 440);
+    assert.ok(Math.abs(c - expect) < 2, `amount ${amount}: ${c}`);
+  }
+});
+
+test("in-tune singing passes through untouched", () => {
+  const x = sung(440, 1), { y } = tune(x, 1), D = Math.floor(0.02 * FS);
+  for (let i = D; i + BLOCK < y.length - BLOCK; i += 37) assert.ok(Math.abs(y[i] - x[i - D]) < 1e-9);
+});
+
+test("pitch correction respects the key", () => {
+  const { pc } = tune(sung(277.18 * Math.pow(2, 20 / 1200), 1.5), 1, "C major");
+  assert.equal(pc.note, 62);
+  assert.equal(E.FSM_KEYS.length, 25);
+  assert.equal(E.fsmNoteName(69), "A4");
+});
+
+test("solo in place with linked pairs, and tune only on vocals", () => {
+  const eng = new E.Engine({ channels: [
+    { input: 1, type: "instrument", pan: -1 }, { input: 2, type: "instrument", pan: 1, link: true },
+    { input: 3, type: "lead_vocal" }, { input: 4, type: "speech" }] }, FS, BLOCK);
+  const tracks = [music(3, -24), music(3, -24), sung(440 * Math.pow(2, 25 / 1200), 3, 0.2), noise(3, -66, 3)];
+  eng.updateChannel(2, { tune: true, tune_amount: 100, tune_speed_ms: 40 });
+  eng.updateChannel(3, { tune: true });
+  run(eng, tracks);
+  assert.ok(eng.strips[2].tuning && !eng.strips[3].tuning && eng.strips[3].tuner === null);
+  assert.ok(Math.abs(eng.strips[2].tuner.cents + 25) < 3);
+  const mt = eng.readMeters().channels[2];
+  assert.equal(mt.tune_note, "A4");
+
+  eng.updateChannel(0, { solo: true });
+  run(eng, tracks.map((t) => t.subarray(0, FS)));
+  assert.ok(eng.strips[0].gainPrev > 0 && eng.strips[1].gainPrev > 0, "linked partner plays");
+  assert.equal(eng.strips[2].gainPrev, 0);
+  assert.ok(eng.readMeters().master.solo_active);
+  eng.clearSolo();
+  run(eng, tracks.map((t) => t.subarray(0, FS)));
+  assert.ok(!eng.anySolo && eng.strips[2].gainPrev > 0);
+  assert.equal(E.fsmNormalize({ channels: [{ type: "speech", solo: true }] }).channels[0].solo, false);
+  assert.throws(() => eng.updateMaster({ tune_key: "H major" }));
+});

@@ -2,11 +2,14 @@
 
 const $ = (s, el = document) => el.querySelector(s);
 const FLOOR = -60;
+const VOCAL_TYPES = ["lead_vocal", "bg_vocal"];
 const pct = (db) => Math.max(0, Math.min(100, ((db - FLOOR) / -FLOOR) * 100));
 const fmt = (v, d = 1) => (v > 0 ? "+" : "") + Number(v).toFixed(d);
 
 let cfg = null;
 let types = [];
+let keys = ["chromatic"];
+const CH = (i) => cfg.channels[i];
 const strips = [];
 const held = new Map(); // meter element -> displayed dB (for smooth fall-off)
 
@@ -46,6 +49,9 @@ function build() {
       fader: $(".fader", el), faderV: $(".fader-v", el),
       pan: $(".pan", el), reverb: $(".reverb", el), mute: $(".mute", el),
       link: $(".linkbox", el), auto: $(".auto", el), autoV: $(".auto b", el),
+      solo: $(".solo", el), tuneBtn: $(".tune-btn", el), tunePanel: $(".tune-panel", el),
+      tuneNote: $(".tune-note", el), tuneCents: $(".tune-cents", el),
+      tAmt: $(".tune-amount", el), tAmtV: $(".ta-v", el), tSpd: $(".tune-speed", el), tSpdV: $(".ts-v", el),
       mIn: $(".fill.in", el), mOut: $(".fill.out", el),
     };
     s.name.addEventListener("change", () => setChannel(i, { name: s.name.value }));
@@ -63,6 +69,10 @@ function build() {
     });
     s.mute.addEventListener("click", () => setChannel(i, { mute: !cfg.channels[i].mute }));
     s.link.addEventListener("change", () => setChannel(i, { link: s.link.checked }));
+    s.solo.addEventListener("click", () => setChannel(i, { solo: !CH(i).solo }));
+    s.tuneBtn.addEventListener("click", () => setChannel(i, { tune: !CH(i).tune }));
+    s.tAmt.addEventListener("input", () => setChannel(i, { tune_amount: Number(s.tAmt.value) }));
+    s.tSpd.addEventListener("input", () => setChannel(i, { tune_speed_ms: Number(s.tSpd.value) }));
     if (i === 0) $(".link", el).style.visibility = "hidden";
     host.appendChild(el);
     strips.push(s);
@@ -84,11 +94,24 @@ function renderStripStatic(i) {
   if (document.activeElement !== s.reverb) s.reverb.value = rv === null || rv <= -40 ? -40 : rv;
   s.mute.classList.toggle("active", !!ch.mute);
   s.link.checked = !!ch.link;
+  s.solo.classList.toggle("active", !!ch.solo);
+  s.el.classList.toggle("soloed", !!ch.solo);
+  const vocal = VOCAL_TYPES.includes(ch.type);
+  s.tuneBtn.hidden = !vocal;
+  s.tuneBtn.classList.toggle("active", vocal && !!ch.tune);
+  s.tunePanel.hidden = !(vocal && ch.tune);
+  if (document.activeElement !== s.tAmt) s.tAmt.value = ch.tune_amount ?? 50;
+  if (document.activeElement !== s.tSpd) s.tSpd.value = ch.tune_speed_ms ?? 150;
+  s.tAmtV.textContent = `${Math.round(ch.tune_amount ?? 50)}%`;
+  s.tSpdV.textContent = `${Math.round(ch.tune_speed_ms ?? 150)} ms`;
   s.el.classList.toggle("off", ch.type === "off");
 }
 
 function renderMaster() {
   const m = cfg.master;
+  const ks = $("#key");
+  if (ks.options.length !== keys.length) { ks.innerHTML = ""; for (const k of keys) ks.add(new Option(k === "chromatic" ? "Chromatic (any note)" : k, k)); }
+  ks.value = m.tune_key || "chromatic";
   $("#target").value = String(Math.round(m.target_lufs));
   if (![...$("#target").options].some((o) => o.value === $("#target").value)) {
     $("#target").add(new Option(`${m.target_lufs} LUFS`, String(Math.round(m.target_lufs))));
@@ -107,6 +130,10 @@ $("#target").addEventListener("change", (e) => setMaster({ target_lufs: Number(e
 $("#ducking").addEventListener("change", (e) => setMaster({ ducking: e.target.value }));
 $("#duck").addEventListener("input", (e) => setMaster({ duck_depth_db: Number(e.target.value) }));
 $("#rv").addEventListener("input", (e) => setMaster({ reverb_return_db: Number(e.target.value) }));
+$("#key").addEventListener("change", (e) => setMaster({ tune_key: e.target.value }));
+$("#solo-alert").addEventListener("click", () =>
+  api("/api/clear_solo", {}).then(() => { cfg.channels.forEach((c, i) => { c.solo = false; renderStripStatic(i); }); })
+    .catch((e) => flash(e.message)));
 $("#bypass").addEventListener("click", () => setMaster({ bypass: !cfg.master.bypass }));
 $("#save").addEventListener("click", () =>
   api("/api/save", {}).then((r) => flash(`Saved to ${r.saved}`)).catch((e) => flash(e.message)));
@@ -128,6 +155,7 @@ function renderMeters(m) {
   $("#agc").textContent = `${fmt(ms.loudness_gain_db)} dB`;
   $("#lim").textContent = `${ms.limiter_db.toFixed(1)} dB`;
   $("#load").textContent = `${ms.dsp_load.toFixed(0)}%` + (ms.xruns ? ` · ${ms.xruns} dropouts` : "");
+  $("#solo-alert").hidden = !ms.solo_active;
   const sp = $("#speech");
   const ducking = ms.duck_db < -0.5;
   sp.textContent = ducking ? `Speech — music ${ms.duck_db.toFixed(0)} dB` : ms.speech_active ? "Speech detected" : "Music level normal";
@@ -141,6 +169,10 @@ function renderMeters(m) {
     meter(s.mIn, c.in_peak);
     meter(s.mOut, c.out_peak);
     s.led.classList.toggle("on", c.active);
+    if (!s.tunePanel.hidden) {
+      s.tuneNote.textContent = c.tune_note || "–";
+      s.tuneCents.textContent = c.tune_note && Math.abs(c.tune_cents) >= 1 ? `${fmt(c.tune_cents, 0)}¢` : "";
+    }
     const auto = c.leveler_db + c.comp_db + c.gate_db + c.share_db + c.duck_db;
     s.autoV.textContent = fmt(auto);
     s.auto.title =
@@ -155,7 +187,7 @@ async function start() {
   for (;;) {
     try {
       const data = await api("/api/config");
-      cfg = data.config; types = data.types;
+      cfg = data.config; types = data.types; keys = data.keys || keys;
       $("#save").hidden = !data.can_save;
       build();
       break;

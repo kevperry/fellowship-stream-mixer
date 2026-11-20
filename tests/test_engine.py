@@ -199,3 +199,100 @@ def test_sixteen_channels_run_well_inside_real_time():
     per_block = (time.perf_counter() - t0) / n
     print(f"\n16 ch @ 48 kHz: {per_block * 1000:.2f} ms per 10 ms block")
     assert per_block < 0.010
+
+
+# ---- solo -------------------------------------------------------------------
+
+def test_solo_in_place_and_linked_pairs():
+    chans = [cfgmod.channel(input=1, type="instrument", pan=-1.0),
+             cfgmod.channel(input=2, type="instrument", pan=1.0, link=True),
+             cfgmod.channel(input=3, type="playback")]
+    eng = Engine(cfgmod.normalize({"channels": chans}), FS, BLOCK)
+    x = np.stack([music_like(3), music_like(3), music_like(3)], axis=1)
+    run(eng, x)
+    eng.update_channel(2, {"solo": True})
+    run(eng, x[: FS])
+    assert eng.any_solo
+    assert eng.strips[0].gain_prev == 0 and eng.strips[1].gain_prev == 0
+    assert eng.strips[2].gain_prev > 0
+    # solo the left of a linked pair: both sides play, playback goes quiet
+    eng.update_channel(2, {"solo": False})
+    eng.update_channel(0, {"solo": True})
+    run(eng, x[: FS])
+    assert eng.strips[0].gain_prev > 0 and eng.strips[1].gain_prev > 0
+    assert eng.strips[2].gain_prev == 0
+    assert eng.read_meters()["master"]["solo_active"]
+    eng.clear_solo()
+    run(eng, x[: FS])
+    assert not eng.any_solo and eng.strips[2].gain_prev > 0
+
+
+def test_solo_is_never_saved(tmp_path):
+    cfg = cfgmod.normalize({"channels": [cfgmod.channel(input=1, type="speech", solo=True)]})
+    assert cfgmod.normalize({"channels": [cfgmod.channel(input=1, type="speech", solo=True)]})["channels"][0]["solo"] is False
+    cfg["channels"][0]["solo"] = True
+    cfgmod.save(cfg, tmp_path / "c.json")
+    assert cfgmod.load(tmp_path / "c.json")["channels"][0]["solo"] is False
+
+
+# ---- pitch correction ------------------------------------------------------
+
+def sung(freq, seconds, level=0.1, vibrato=0.0):
+    t = np.arange(int(seconds * FS)) / FS
+    ph = 2 * np.pi * np.cumsum(freq * (1 + vibrato * np.sin(2 * np.pi * 5.5 * t))) / FS
+    return sum(np.sin(h * ph) / h for h in range(1, 8)) * level + room_noise(seconds, seed=21)
+
+
+def detected_cents(y, ref):
+    from fsm.pitch import yin
+    f, _ = yin(y[-int(0.1 * FS):], FS, FS // 1000, FS // 70)
+    return 1200 * np.log2(f / ref)
+
+
+def test_pitch_corrector_amounts():
+    from fsm.pitch import PitchCorrector, scale_notes
+    x = sung(440 * 2 ** (30 / 1200), 2.0)
+    for amount, expect in ((1.0, 0.0), (0.5, 15.0), (0.0, 30.0)):
+        pc = PitchCorrector(FS, BLOCK)
+        y = np.concatenate([pc.process(x[i:i + BLOCK], True, amount, 40, scale_notes("chromatic"))
+                            for i in range(0, len(x) - BLOCK + 1, BLOCK)])
+        assert abs(detected_cents(y, 440) - expect) < 2.0, (amount, detected_cents(y, 440))
+
+
+def test_pitch_corrector_leaves_in_tune_singing_untouched():
+    from fsm.pitch import PitchCorrector, scale_notes
+    x = sung(440, 1.0)
+    pc = PitchCorrector(FS, BLOCK)
+    y = np.concatenate([pc.process(x[i:i + BLOCK], True, 1.0, 40, scale_notes("chromatic"))
+                        for i in range(0, len(x) - BLOCK + 1, BLOCK)])
+    d = int(0.02 * FS)
+    assert np.allclose(y[d:], x[: len(y) - d], atol=1e-9)  # exactly the input, 20 ms later
+
+
+def test_pitch_corrector_respects_key():
+    from fsm.pitch import PitchCorrector, scale_notes
+    x = sung(277.18 * 2 ** (20 / 1200), 1.5)   # C#4 a little sharp
+    pc = PitchCorrector(FS, BLOCK)
+    for i in range(0, len(x) - BLOCK + 1, BLOCK):
+        pc.process(x[i:i + BLOCK], True, 1.0, 40, scale_notes("C major"))
+    assert pc.note == 62  # C# is not in C major; D is the nearest note in the key
+
+
+def test_tune_in_the_engine_only_on_vocals_and_switches_cleanly():
+    eng = make_engine(["lead_vocal", "speech"])
+    eng.update_channel(0, {"tune": True, "tune_amount": 100, "tune_speed_ms": 40})
+    eng.update_channel(1, {"tune": True})  # ignored: not a vocal channel
+    x = np.stack([sung(440 * 2 ** (25 / 1200), 4.0, level=0.2), room_noise(4.0)], axis=1)
+    y = run(eng, x)
+    s0, s1 = eng.strips
+    assert s0.tuning and not s1.tuning and s1.tuner is None
+    assert abs(s0.tuner.cents + 25) < 3
+    m = eng.read_meters()["channels"][0]
+    assert m["tune_note"] == "A4" and m["tune_cents"] < -20
+    eng.update_channel(0, {"tune": False})
+    y2 = run(eng, x[:FS])
+    assert np.all(np.isfinite(y)) and np.all(np.isfinite(y2))
+    assert s0.tune_mix == 0.0
+    with pytest.raises(ValueError):
+        eng.update_master({"tune_key": "H major"})
+    eng.update_master({"tune_key": "G major"})

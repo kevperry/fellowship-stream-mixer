@@ -16,6 +16,7 @@ DEFAULT_MASTER = {
     "reverb_return_db": 0.0,
     "output_trim_db": 0.0,
     "bypass": False,          # A/B: true = plain fader mix, no automation
+    "tune_key": "chromatic",  # song key for vocal pitch correction, e.g. "G major"
 }
 
 DEFAULT_AUDIO = {
@@ -36,6 +37,10 @@ CHANNEL_DEFAULTS = {
     "reverb_db": None,    # None = use the source type's default
     "ducks_music": None,  # None = use the source type's default
     "link": False,        # stereo-link with the channel before it
+    "solo": False,        # solo in place (never saved)
+    "tune": False,        # light pitch correction (vocal channels only)
+    "tune_amount": 50.0,  # % of the way to the nearest note
+    "tune_speed_ms": 150.0,  # how quickly it corrects; slower keeps vibrato
 }
 
 EXAMPLE_CHANNELS = [
@@ -95,7 +100,11 @@ def normalize(cfg: dict) -> dict:
         if not c["name"]:
             c["name"] = f"Ch {c['input']}"
         c["pan"] = max(-1.0, min(1.0, float(c["pan"])))
+        c["solo"] = False  # solo never survives a restart
         out["channels"].append(c)
+    from .pitch import KEYS
+    if out["master"]["tune_key"] not in KEYS:
+        raise ValueError(f"master.tune_key must be one of: {', '.join(KEYS)}")
     if out["master"]["ducking"] not in ("auto", "off"):
         raise ValueError("master.ducking must be 'auto' or 'off'")
     return out
@@ -113,7 +122,9 @@ def save(cfg: dict, path: str | Path) -> None:
         return v
 
     data = copy.deepcopy(cfg)
+    data["master"]["bypass"] = False
     for ch in data["channels"]:
+        ch["solo"] = False
         for k, v in ch.items():
             ch[k] = clean(v)
     tmp = Path(str(path) + ".tmp")

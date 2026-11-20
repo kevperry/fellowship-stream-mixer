@@ -29,7 +29,7 @@ const FSM_TYPE_ORDER = ["speech", "lead_vocal", "bg_vocal", "instrument", "drums
 
 const FSM_DEFAULT_MASTER = {
   target_lufs: -16, ceiling_db: -1, ducking: "auto", duck_depth_db: -9,
-  reverb_return_db: 0, output_trim_db: 0, bypass: false,
+  reverb_return_db: 0, output_trim_db: 0, bypass: false, tune_key: "chromatic",
 };
 const FSM_DEFAULT_AUDIO = {
   input_device: "SQ", output_device: "BlackHole", output_channels: [1, 2],
@@ -38,6 +38,7 @@ const FSM_DEFAULT_AUDIO = {
 const FSM_CHANNEL_DEFAULTS = {
   name: "", type: "off", trim_db: 0, fader_db: 0, mute: false, pan: 0,
   reverb_db: null, ducks_music: null, link: false,
+  solo: false, tune: false, tune_amount: 50, tune_speed_ms: 150,
 };
 
 // ---------------------------------------------------------------- filters
@@ -317,6 +318,153 @@ class Reverb {
   }
 }
 
+
+// ---------------------------------------------------------------- pitch correction
+// Port of fsm/pitch.py: YIN pitch detection + a delay-line shifter that jumps by
+// exactly one pitch period (phase-aligned) when its read point reaches the edge.
+
+const FSM_NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+const FSM_SCALES = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
+const FSM_KEYS = ["chromatic"].concat(...FSM_NOTE_NAMES.map((n) => [`${n} major`, `${n} minor`]));
+const FSM_VOCAL_TYPES = ["lead_vocal", "bg_vocal"];
+const PITCH_FMIN = 70, PITCH_FMAX = 1000, DEADBAND_CENTS = 3;
+
+function fsmScaleNotes(key) {
+  if (key === "chromatic") return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  const [root, scale] = key.split(" ");
+  const r = FSM_NOTE_NAMES.indexOf(root);
+  return FSM_SCALES[scale].map((i) => (r + i) % 12).sort((a, b) => a - b);
+}
+function fsmNoteName(m) { m = Math.round(m); return FSM_NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
+
+class PitchCorrector {
+  constructor(fs, block) {
+    this.fs = fs; this.n = block; this.dt = block / fs;
+    this.tauMin = Math.max(2, Math.floor(fs / PITCH_FMAX));
+    this.tauMax = Math.floor(fs / PITCH_FMIN);
+    this.H = Math.floor(0.06 * fs);
+    this.buf = new Float64Array(this.H + block);  // [history | current block]
+    this.center = 0.02 * fs;
+    this.d = this.center;
+    this.period = 0.005 * fs;
+    this.cents = 0; this.note = null; this.f0 = null; this.detune = 0;
+    this.xfLeft = 0; this.xfLen = 1; this.xfOff = 0;
+    let N = 1; while (N < 2 * this.tauMax) N <<= 1;
+    this.N = N;
+    this.re = new Float64Array(N); this.im = new Float64Array(N);
+    this.cmnd = new Float64Array(this.tauMax + 1);
+    this.out = new Float64Array(block);
+  }
+  _load(x) {
+    this.buf.copyWithin(0, this.n);
+    this.buf.set(x, this.H);
+  }
+  push(x) { this._load(x); this.f0 = null; }
+
+  /** YIN on the last 2*tauMax samples. Returns frequency or null. */
+  _yin() {
+    const W = this.tauMax, N = this.N, re = this.re, im = this.im, buf = this.buf;
+    const base = buf.length - 2 * W;
+    re.fill(0); im.fill(0);
+    for (let j = 0; j < 2 * W; j++) re[j] = buf[base + j];   // x
+    for (let j = 0; j < W; j++) im[j] = buf[base + j];       // x0 (packed in the imaginary part)
+    fft(re, im, false);
+    // unpack X and X0 from Z = X + iX0, form conj(X0)*X, inverse-transform
+    const pr = new Float64Array(N), pi = new Float64Array(N);
+    for (let k = 0; k < N; k++) {
+      const k2 = (N - k) & (N - 1);
+      const xr = 0.5 * (re[k] + re[k2]), xi = 0.5 * (im[k] - im[k2]);
+      const yr = 0.5 * (im[k] + im[k2]), yi = -0.5 * (re[k] - re[k2]);
+      pr[k] = yr * xr + yi * xi;
+      pi[k] = yr * xi - yi * xr;
+    }
+    fft(pr, pi, true);
+    const cm = this.cmnd;
+    let e0 = 0;
+    for (let j = 0; j < W; j++) e0 += buf[base + j] * buf[base + j];
+    let et = e0, run = 0;
+    cm[0] = 1;
+    for (let tau = 1; tau <= W; tau++) {
+      const a = buf[base + tau - 1], b = buf[base + tau - 1 + W];
+      et += b * b - a * a;
+      const d = Math.max(0, e0 + et - 2 * pr[tau]);
+      run += d;
+      cm[tau] = run > 1e-20 ? d * tau / run : 1;
+    }
+    let tau = -1;
+    for (let t = this.tauMin; t < W; t++) {
+      if (cm[t] < 0.15) { tau = t; while (tau + 1 < W && cm[tau + 1] < cm[tau]) tau++; break; }
+    }
+    if (tau < 0) { tau = this.tauMin; for (let t = this.tauMin; t < W; t++) if (cm[t] < cm[tau]) tau = t; }
+    if (cm[tau] > 0.25) return null;
+    let tf = tau;
+    if (tau >= 1 && tau < W) {
+      const a = cm[tau - 1], b = cm[tau], c = cm[tau + 1], den = a - 2 * b + c;
+      if (Math.abs(den) > 1e-12) tf = tau + Math.max(-1, Math.min(1, 0.5 * (a - c) / den));
+    }
+    return this.fs / tf;
+  }
+
+  _target(midi, allowed) {
+    if (this.note !== null && allowed.includes(((this.note % 12) + 12) % 12) && Math.abs(midi - this.note) < 0.7) return this.note;
+    const base = Math.floor(midi);
+    let best = null;
+    for (let m = base - 2; m <= base + 2; m++) {
+      if (allowed.includes(((m % 12) + 12) % 12) && (best === null || Math.abs(m - midi) < Math.abs(best - midi))) best = m;
+    }
+    return best;
+  }
+
+  process(x, active, amount, speedMs, allowed) {
+    const n = this.n, fs = this.fs, H = this.H;
+    this._load(x);
+    let f0 = null;
+    if (active) {
+      const W = this.tauMax, base = this.buf.length - 2 * W;
+      let e1 = 0, e2 = 0;
+      for (let j = 0; j < W; j++) { const a = this.buf[base + j], b = this.buf[base + W + j]; e1 += a * a; e2 += b * b; }
+      if (e1 > 0.25 * e2 && e2 > 0.25 * e1) f0 = this._yin();
+    }
+    this.f0 = f0;
+    let want = 0;
+    if (f0) {
+      this.period = fs / f0;
+      const midi = 69 + 12 * Math.log2(f0 / 440);
+      this.note = this._target(midi, allowed);
+      this.detune = (midi - this.note) * 100;
+      want = Math.abs(this.detune) < DEADBAND_CENTS ? 0 : -this.detune * Math.max(0, Math.min(1, amount));
+    } else { this.note = null; this.detune = 0; }
+    const k = 1 - Math.exp(-this.dt / Math.max(0.005, speedMs / 1000));
+    this.cents = Math.max(-100, Math.min(100, this.cents + (want - this.cents) * k));
+
+    const ratio = Math.pow(2, this.cents / 1200), slope = 1 - ratio, T = this.period;
+    const lo = this.center - T / 2, hi = this.center + T / 2;
+    const buf = this.buf, last = buf.length - 1.000001;
+    const read = (p) => { p = p < 0 ? 0 : p > last ? last : p; const i = p | 0, f = p - i; return buf[i] * (1 - f) + buf[i + 1] * f; };
+    let d = this.d;
+    const out = this.out;
+    for (let i = 0; i < n; i++) {
+      d += slope;
+      if ((slope < 0 && d < lo) || (slope > 0 && d > hi)) {
+        let off = d < lo ? T : -T;
+        if (!(lo - T <= d && d <= hi + T)) off = this.center - d;
+        d += off;
+        this.xfLen = Math.max(32, Math.min(T, 0.005 * fs)) | 0;
+        this.xfLeft = this.xfLen; this.xfOff = off;
+      }
+      let y = read(H + i - d);
+      if (this.xfLeft > 0) {
+        const w = (this.xfLen - this.xfLeft + 1) / this.xfLen;
+        y = w * y + (1 - w) * read(H + i - (d - this.xfOff));
+        this.xfLeft--;
+      }
+      out[i] = y;
+    }
+    this.d = d;
+    return out;
+  }
+}
+
 // ---------------------------------------------------------------- engine
 
 const NF_MIN = -85, NF_MAX = -45, OPEN_ABOVE = 10, CLOSE_ABOVE = 6, NOISE_WINDOW_S = 20;
@@ -327,6 +475,7 @@ class Strip {
     this.fs = fs; this.block = block; this.dt = block / fs;
     this.blocksPerS = Math.max(1, Math.round(fs / block));
     this.type = null;
+    this.tuner = null; this.tuneMix = 0;
     this.configure(ch);
     this.nfRing = []; this.nfCur = Infinity; this.nfCount = 0; this.noiseFloor = -70;
     this.gateOpen = false; this.hold = 0; this.gateDb = this.p.gate_range;
@@ -356,6 +505,23 @@ class Strip {
     this.send = rv === null || rv <= -60 ? 0 : db2lin(rv);
     this.ducksMusic = ch.ducks_music === null || ch.ducks_music === undefined ? this.p.ducks_music : !!ch.ducks_music;
     this.link = !!ch.link;
+    this.solo = !!ch.solo;
+    this.tune = !!ch.tune;
+    this.tuneAmount = Number(ch.tune_amount ?? 50) / 100;
+    this.tuneSpeedMs = Number(ch.tune_speed_ms ?? 150);
+    if (FSM_VOCAL_TYPES.includes(this.type) && !this.tuner) this.tuner = new PitchCorrector(this.fs, this.block);
+  }
+  get tuning() { return this.tune && FSM_VOCAL_TYPES.includes(this.type); }
+
+  /** Light pitch correction on this.buf, crossfaded over 30 ms when switched. */
+  applyTune(allowed) {
+    if (!this.tuner) return;
+    const prev = this.tuneMix, step = this.dt / 0.03;
+    this.tuneMix = this.tuning ? Math.min(1, prev + step) : Math.max(0, prev - step);
+    if (prev === 0 && this.tuneMix === 0) { this.tuner.push(this.buf); return; }
+    const wet = this.tuner.process(this.buf, this.gateOpen, this.tuneAmount, this.tuneSpeedMs, allowed);
+    const n = this.buf.length, dm = (this.tuneMix - prev) / n;
+    for (let i = 0; i < n; i++) { const m = prev + dm * (i + 1); this.buf[i] = this.buf[i] * (1 - m) + wet[i] * m; }
   }
   get on() { return this.type !== "off" && !this.mute; }
 
@@ -414,7 +580,7 @@ class Engine {
     this.postMeter = new LoudnessMeter(fs, block);
     this.limiter = new Limiter(fs, block, this.cfg.master.ceiling_db);
     this.agcDb = 0; this.agcPrev = 1;
-    this.duckDb = 0; this.duckHold = 0; this.speechActive = false;
+    this.duckDb = 0; this.duckHold = 0; this.speechActive = false; this.anySolo = false;
     this.bypassMix = this.cfg.master.bypass ? 1 : 0;
     const n = block;
     this.mixL = new Float64Array(n); this.mixR = new Float64Array(n);
@@ -433,6 +599,9 @@ class Engine {
     this.cfg.channels[i] = ch;
     this.strips[i].configure(ch);
     return ch;
+  }
+  clearSolo() {
+    this.cfg.channels.forEach((ch, i) => { if (ch.solo) this.updateChannel(i, { solo: false }); });
   }
   updateMaster(changes) {
     Object.assign(this.cfg.master, fsmValidateMaster(changes));
@@ -458,14 +627,25 @@ class Engine {
       if (strips[i].link) levels[i] = levels[i - 1] = Math.max(levels[i], levels[i - 1]);
     }
     strips.forEach((s, i) => s.detect(levels[i]));
+
+    const allowed = fsmScaleNotes(m.tune_key || "chromatic");
+    for (const s of strips) if (s.tuner && s.type !== "off") s.applyTune(allowed);
+
+    // solo in place; soloing either side of a linked pair solos both
+    const soloed = strips.map((s) => s.solo);
+    for (let i = 1; i < strips.length; i++) {
+      if (strips[i].link && (soloed[i] || soloed[i - 1])) soloed[i] = soloed[i - 1] = true;
+    }
+    this.anySolo = strips.some((s, i) => soloed[i] && s.type !== "off");
+    const audible = strips.map((s, i) => s.on && (soloed[i] || !this.anySolo));
     this.gainSharing();
     this.ducking(m);
 
     const mixL = this.mixL, mixR = this.mixR, send = this.send;
     mixL.fill(0); mixR.fill(0); send.fill(0);
-    for (const s of strips) {
+    strips.forEach((s, si) => {
       let g = 0;
-      if (s.on) {
+      if (audible[si]) {
         let total = s.levDb + s.grDb + s.gateDb + s.amDb + s.faderDb;
         if (s.p.duckable) total += this.duckDb;
         g = db2lin(total);
@@ -483,7 +663,7 @@ class Engine {
       } else s.buf.fill(0);
       s.gainPrev = g;
       s._outPk = pk; s._outMs = ss / n;
-    }
+    });
 
     this.reverb.process(send, this.wetL, this.wetR);
     const rr = db2lin(m.reverb_return_db);
@@ -509,14 +689,14 @@ class Engine {
       const bypL = this.bypL, bypR = this.bypR;
       bypL.fill(0); bypR.fill(0);
       const trim = db2lin(m.output_trim_db);
-      for (const s of strips) {
-        const g = s.on ? db2lin(s.faderDb) : 0, g0 = s.bypassGainPrev, dg = (g - g0) / n;
+      strips.forEach((s, si) => {
+        const g = audible[si] ? db2lin(s.faderDb) : 0, g0 = s.bypassGainPrev, dg = (g - g0) / n;
         for (let i = 0; i < n; i++) {
           const v = s.raw[i] * (g0 + dg * (i + 1)) * trim;
           bypL[i] += v * s.panL; bypR[i] += v * s.panR;
         }
         s.bypassGainPrev = g;
-      }
+      });
       const db = (this.bypassMix - bPrev) / n;
       for (let i = 0; i < n; i++) {
         const b = bPrev + db * (i + 1);
@@ -585,14 +765,16 @@ class Engine {
         out_level: Math.max(10 * Math.log10(s._outMs + FSM_EPS), -120),
         level: r1(s.level), noise_floor: r1(s.noiseFloor), active: s.gateOpen,
         gate_db: r1(s.gateDb), leveler_db: r1(s.levDb), comp_db: r1(s.grDb),
-        share_db: r1(s.amDb), duck_db: s.p.duckable ? r1(this.duckDb) : 0,
+        share_db: r1(s.amDb), duck_db: s.p.duckable ? r1(this.duckDb) : 0, solo: s.solo,
+        tune_note: s.tuning && s.tuner && s.tuner.note !== null ? fsmNoteName(s.tuner.note) : null,
+        tune_cents: s.tuning && s.tuner ? r1(s.tuner.cents) : 0,
       })),
       master: {
         peak_l: lin2db(this.pkMaster[0]), peak_r: lin2db(this.pkMaster[1]),
         momentary: r1(this.postMeter.momentary), short_term: r1(this.postMeter.shortTerm),
         loudness_gain_db: r1(this.agcDb), limiter_db: r1(lin2db(this.limiter.lastMinGain)),
         speech_active: this.speechActive, duck_db: r1(this.duckDb),
-        bypass: !!this.cfg.master.bypass, dsp_load: r1(this.load * 100), xruns: this.xruns,
+        bypass: !!this.cfg.master.bypass, solo_active: this.anySolo, dsp_load: r1(this.load * 100), xruns: this.xruns,
         sample_rate: this.fs, block: this.block,
       },
     };
@@ -618,7 +800,9 @@ function fsmValidateChannel(ch) {
     else if (k === "fader_db") out[k] = fsmNum(v, -60, 12);
     else if (k === "pan") out[k] = fsmNum(v, -1, 1);
     else if (k === "reverb_db") out[k] = v === null ? null : fsmNum(v, -60, 0);
-    else if (k === "mute" || k === "link") out[k] = !!v;
+    else if (k === "mute" || k === "link" || k === "solo" || k === "tune") out[k] = !!v;
+    else if (k === "tune_amount") out[k] = fsmNum(v, 0, 100);
+    else if (k === "tune_speed_ms") out[k] = fsmNum(v, 10, 500);
     else if (k === "ducks_music") out[k] = v === null ? null : !!v;
     else if (k === "input") out[k] = Math.max(1, v | 0);
     else throw new Error(`unknown channel setting ${k}`);
@@ -635,6 +819,7 @@ function fsmValidateMaster(m) {
     else if (k === "reverb_return_db" || k === "output_trim_db") out[k] = fsmNum(v, -24, 12);
     else if (k === "ducking") { if (v !== "auto" && v !== "off") throw new Error("ducking must be auto or off"); out[k] = v; }
     else if (k === "bypass") out[k] = !!v;
+    else if (k === "tune_key") { if (!FSM_KEYS.includes(v)) throw new Error(`unknown key ${v}`); out[k] = v; }
     else throw new Error(`unknown master setting ${k}`);
   }
   return out;
@@ -653,6 +838,7 @@ function fsmNormalize(cfg) {
     for (const k of Object.keys(ch)) if (k in FSM_CHANNEL_DEFAULTS || k === "input") known[k] = ch[k];
     Object.assign(c, fsmValidateChannel(known));
     if (!c.name) c.name = `Ch ${c.input}`;
+    c.solo = false; // solo never survives a reload
     out.channels.push(c);
   });
   return out;
@@ -677,6 +863,6 @@ if (typeof AudioWorkletGlobalScope !== "undefined") {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { Engine, Limiter, Reverb, LoudnessMeter, FilterChain, biquad, fft, db2lin, lin2db,
+  module.exports = { PitchCorrector, fsmScaleNotes, fsmNoteName, FSM_KEYS, Engine, Limiter, Reverb, LoudnessMeter, FilterChain, biquad, fft, db2lin, lin2db,
     fsmBlockSize, fsmNormalize, fsmGuessType, FSM_PRESETS, FSM_TYPE_ORDER, FSM_CHANNEL_DEFAULTS };
 }

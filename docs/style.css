@@ -141,3 +141,19 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-si
   background: var(--accent); border-color: var(--accent); color: #1a1206; }
 .time { font-variant-numeric: tabular-nums; min-width: 44px; }
 .loop { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; }
+
+/* ---- solo & tune ---- */
+.btns button { flex: 1; }
+.solo { padding: 4px 8px; font-size: 12px; }
+.solo.active { background: var(--warn); border-color: var(--warn); color: #1a1206; font-weight: 600; }
+.strip.soloed { border-color: var(--warn); }
+.tune-btn { padding: 3px 8px; font-size: 11px; }
+.tune-btn.active { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 600; }
+.tune-panel { display: flex; flex-direction: column; gap: 5px; border-top: 1px solid var(--line); padding-top: 6px; }
+.tune-read { display: flex; justify-content: space-between; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tune-read b { color: var(--text); }
+.tune-read span { color: var(--accent); }
+.mini output { color: var(--text); float: right; }
+.solo-alert { background: var(--warn); border-color: var(--warn); color: #1a1206; font-weight: 700; cursor: pointer;
+  animation: blink 1.2s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .65; } }

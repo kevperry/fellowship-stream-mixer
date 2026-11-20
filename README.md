@@ -24,6 +24,8 @@ every 10 ms, it:
 | **Ducks music under speech** | When someone talks, instruments and playback step back (−9 dB by default) and return smoothly afterwards. |
 | **Holds stream loudness** | Keeps the stream at a steady loudness target (−16 LUFS by default) and puts a limiter on the output so it never clips. |
 | **Adds reverb** | Vocals get a hall reverb send, since direct outs are dry. |
+| **Light pitch correction** | Optional, per vocal channel (**Tune**). It finds the note being sung and nudges it toward the nearest note in the song's key. **Amount** (0–100%) sets how far, and **Speed** sets how quickly. Slow speeds leave vibrato and expression alone. In‑tune singing passes through untouched. |
+| **Solo** | Hear only the soloed channels (solo in place). Soloing one side of a linked stereo pair solos both. |
 | **A/B switch** | One click switches between the automatic mix and a plain fader mix, so you can hear the difference. |
 
 The control panel runs in a web browser. It shows meters, an "active" light and
@@ -122,6 +124,15 @@ settings**. Some tips:
   headset picks up the band and keeps ducking it. Set it back to **Auto** for the
   sermon. You can also turn off one mic's ducking in `config.json`
   (`"ducks_music": false`).
+- **Solo** is for checking a channel. On the live app it changes **what the
+  stream hears**, the same as on the practice page. While anything is soloed,
+  a flashing **SOLO ACTIVE** button appears; click it to clear every solo. Solo
+  is never saved, so a restart always comes back un‑soloed.
+- **Tune** appears on Lead and Background vocal channels. Start around
+  **Amount 40–60%, Speed 150–250 ms** for a natural sound. Set **Song key**
+  for each song so notes are pulled toward the right scale, or leave it on
+  *Chromatic*. The strip shows the note it hears and the correction in cents
+  (¢). Tuning adds about 20 ms of delay to that one channel.
 - **Auto mix: ON/OFF** switches to a plain fader mix, for comparison or if
   something sounds wrong.
 - To control it from an **iPad or phone**, start it with `--host 0.0.0.0`. Then
@@ -180,6 +191,8 @@ are read in name order, so `Track 1, Track 2, … Track 10`.
 | `channels[].reverb_db` | Reverb send; `null` uses the source type's default. |
 | `channels[].ducks_music` | Override whether this mic ducks the music (`true`/`false`/`null`). |
 | `channels[].link` | Stereo‑link with the channel before it. |
+| `channels[].tune`, `tune_amount`, `tune_speed_ms` | Pitch correction on/off (vocal types only), strength 0–100 %, and speed in ms (10–500). |
+| `master.tune_key` | `"chromatic"` or a key such as `"G major"`, `"E minor"`, `"Bb major"`. |
 
 The per‑type sound (EQ, compression, targets) lives in `fsm/presets.py` if you
 want to adjust it.

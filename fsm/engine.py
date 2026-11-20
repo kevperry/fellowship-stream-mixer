@@ -32,6 +32,7 @@ import numpy as np
 from . import config as cfgmod
 from .dsp import (FilterChain, Limiter, LoudnessMeter, Reverb, biquad, db2lin,
                   highpass_sections, lin2db, power_db)
+from .pitch import KEYS, VOCAL_TYPES, PitchCorrector, note_name, scale_notes
 from .presets import PRESETS
 
 NOISE_FLOOR_MIN = -85.0
@@ -54,6 +55,8 @@ class Strip:
         self.dt = block / fs
         self.blocks_per_s = max(1, round(fs / block))
         self.type = None
+        self.tuner = None
+        self.tune_mix = 0.0
         self.configure(ch)
 
         self.nf_ring: deque[float] = deque(maxlen=NOISE_WINDOW_S)
@@ -94,6 +97,30 @@ class Strip:
         dm = ch.get("ducks_music")
         self.ducks_music = self.p["ducks_music"] if dm is None else bool(dm)
         self.link = bool(ch.get("link", False))
+        self.solo = bool(ch.get("solo", False))
+        self.tune = bool(ch.get("tune", False))
+        self.tune_amount = float(ch.get("tune_amount", 50.0)) / 100.0
+        self.tune_speed_ms = float(ch.get("tune_speed_ms", 150.0))
+        if self.type in VOCAL_TYPES and self.tuner is None:
+            self.tuner = PitchCorrector(self.fs, self.block)
+
+    @property
+    def tuning(self) -> bool:
+        return self.tune and self.type in VOCAL_TYPES
+
+    def apply_tune(self, x: np.ndarray, allowed) -> np.ndarray:
+        """Light pitch correction, crossfaded in/out over 30 ms when switched."""
+        if self.tuner is None:
+            return x
+        prev = self.tune_mix
+        step = self.dt / 0.03
+        self.tune_mix = min(1.0, prev + step) if self.tuning else max(0.0, prev - step)
+        if prev == 0.0 and self.tune_mix == 0.0:
+            self.tuner.push(x)
+            return x
+        wet = self.tuner.process(x, self.gate_open, self.tune_amount, self.tune_speed_ms, allowed)
+        m = prev + (self.tune_mix - prev) * (np.arange(1, len(x) + 1) / len(x))
+        return x * (1.0 - m) + wet * m
 
     @property
     def on(self) -> bool:
@@ -179,6 +206,7 @@ class Engine:
         self.duck_db = 0.0
         self.duck_hold = 0.0
         self.speech_active = False
+        self.any_solo = False
         self.bypass_mix = 1.0 if m["bypass"] else 0.0
 
         self._pending: queue.SimpleQueue = queue.SimpleQueue()
@@ -199,6 +227,11 @@ class Engine:
             self.cfg["channels"][index] = ch
             self._pending.put(("channel", index, dict(ch)))
             return ch
+
+    def clear_solo(self) -> None:
+        for i, ch in enumerate(self.cfg["channels"]):
+            if ch.get("solo"):
+                self.update_channel(i, {"solo": False})
 
     def update_master(self, changes: dict) -> dict:
         with self._lock:
@@ -247,12 +280,27 @@ class Engine:
         for s, lvl in zip(strips, levels):
             s.detect(float(lvl))
 
+        allowed = scale_notes(m.get("tune_key", "chromatic"))
+        for i, s in enumerate(strips):
+            if s.tuner is not None and s.type != "off":
+                eq[:, i] = s.apply_tune(eq[:, i], allowed)
+
+        # Solo in place: while anything is soloed only soloed channels are heard.
+        # Soloing either side of a stereo-linked pair solos both.
+        soloed = [s.solo for s in strips]
+        for i, s in enumerate(strips):
+            if s.link and i > 0 and (soloed[i] or soloed[i - 1]):
+                soloed[i] = soloed[i - 1] = True
+        any_solo = any(sl and s.type != "off" for sl, s in zip(soloed, strips))
+        self.any_solo = any_solo
+        audible = [s.on and (sl or not any_solo) for s, sl in zip(strips, soloed)]
+
         self._gain_sharing()
         self._ducking(m)
 
         new_gain = np.zeros(C)
         for i, s in enumerate(strips):
-            if s.on:
+            if audible[i]:
                 total = s.lev_db + s.gr_db + s.gate_db + s.am_db + s.fader_db
                 if s.p["duckable"]:
                     total += self.duck_db
@@ -292,7 +340,7 @@ class Engine:
             for s in strips:
                 s.bypass_gain_prev = 0.0
         else:
-            bg_new = np.array([0.0 if not s.on else float(db2lin(s.fader_db)) for s in strips])
+            bg_new = np.array([float(db2lin(s.fader_db)) if a else 0.0 for s, a in zip(strips, audible)])
             bg_prev = np.array([s.bypass_gain_prev for s in strips])
             bo = raw * (bg_prev + (bg_new - bg_prev) * self._ramp)
             for s, v in zip(strips, bg_new):
@@ -371,6 +419,9 @@ class Engine:
                     "comp_db": round(s.gr_db, 1),
                     "share_db": round(s.am_db, 1),
                     "duck_db": round(self.duck_db, 1) if s.p["duckable"] else 0.0,
+                    "solo": s.solo,
+                    "tune_note": (note_name(s.tuner.note) if s.tuning and s.tuner and s.tuner.note is not None else None),
+                    "tune_cents": round(s.tuner.cents, 1) if s.tuning and s.tuner else 0.0,
                 }
                 for i, s in enumerate(self.strips)
             ],
@@ -384,6 +435,7 @@ class Engine:
                 "speech_active": bool(self.speech_active),
                 "duck_db": round(self.duck_db, 1),
                 "bypass": bool(self.cfg["master"]["bypass"]),
+                "solo_active": bool(self.any_solo),
                 "dsp_load": round(self.load * 100.0, 1),
                 "xruns": self.xruns,
                 "sample_rate": self.fs,
@@ -424,8 +476,12 @@ def _validate_channel_changes(ch: dict) -> dict:
             out[k] = _num(v, -1, 1)
         elif k == "reverb_db":
             out[k] = None if v is None else _num(v, -60, 0)
-        elif k in ("mute", "link"):
+        elif k in ("mute", "link", "solo", "tune"):
             out[k] = bool(v)
+        elif k == "tune_amount":
+            out[k] = _num(v, 0, 100)
+        elif k == "tune_speed_ms":
+            out[k] = _num(v, 10, 500)
         elif k == "ducks_music":
             out[k] = None if v is None else bool(v)
         else:
@@ -450,6 +506,10 @@ def _validate_master_changes(m: dict) -> dict:
             out[k] = v
         elif k == "bypass":
             out[k] = bool(v)
+        elif k == "tune_key":
+            if v not in KEYS:
+                raise ValueError(f"unknown key {v!r}")
+            out[k] = v
         else:
             raise ValueError(f"unknown master setting {k!r}")
     return out

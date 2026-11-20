@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import config as cfgmod
+from .pitch import KEYS
 from .presets import PRESETS, TYPE_ORDER
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -54,6 +55,7 @@ class ControlServer:
                                    "reverb_db": _f(PRESETS[t]["reverb_db"]),
                                    "ducks_music": PRESETS[t]["ducks_music"]} for t in TYPE_ORDER],
                         "can_save": app.config_path is not None,
+                        "keys": KEYS,
                     })
                 name = "index.html" if path in ("/", "") else path.lstrip("/")
                 f = (WEB_DIR / name).resolve()
@@ -74,6 +76,9 @@ class ControlServer:
                         if not 0 <= idx < len(eng.strips):
                             raise ValueError("no such channel")
                         return self._json(200, _finite(eng.update_channel(idx, body["changes"])))
+                    if path == "/api/clear_solo":
+                        eng.clear_solo()
+                        return self._json(200, {"ok": True})
                     if path == "/api/master":
                         return self._json(200, _finite(eng.update_master(body)))
                     if path == "/api/save":

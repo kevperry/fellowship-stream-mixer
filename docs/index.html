@@ -88,8 +88,12 @@
         <label>Reverb return <output id="rvv"></output>
           <input type="range" id="rv" min="-24" max="6" step="1">
         </label>
+        <label>Song key (vocal tuning)
+          <select id="key"></select>
+        </label>
       </div>
       <div class="master-readouts">
+        <button class="pill solo-alert" id="solo-alert" hidden title="Click to clear all solos">SOLO ACTIVE — click to clear</button>
         <div class="pill" id="speech">Music level normal</div>
         <div class="stat"><span>Loudness gain</span><b id="agc">0.0 dB</b></div>
         <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
@@ -127,9 +131,20 @@
     <div class="auto" title="">auto <b>0.0</b></div>
     <label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.05"></label>
     <label class="mini rvl">Reverb <input type="range" class="reverb" min="-40" max="0" step="1"></label>
-    <div class="row">
+    <div class="row btns">
       <button class="mute">Mute</button>
+      <button class="solo" title="Hear only the soloed channels">Solo</button>
+    </div>
+    <div class="row">
       <label class="link" title="Stereo-link with the channel to the left"><input type="checkbox" class="linkbox"> Link</label>
+      <button class="tune-btn" title="Light pitch correction (vocals)">Tune</button>
+    </div>
+    <div class="tune-panel" hidden>
+      <div class="tune-read" title="Note heard · correction being applied"><b class="tune-note">–</b><span class="tune-cents"></span></div>
+      <label class="mini">Amount <output class="ta-v"></output>
+        <input type="range" class="tune-amount" min="0" max="100" step="5"></label>
+      <label class="mini" title="How quickly notes are pulled in. Slower is gentler and keeps vibrato.">Speed <output class="ts-v"></output>
+        <input type="range" class="tune-speed" min="20" max="500" step="10"></label>
     </div>
   </div>
 </template>
