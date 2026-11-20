@@ -1,3 +1,22 @@
 {
-  "demos": []
+  "demos": [
+    {
+      "id": "demos-worship-band",
+      "path": "demos/worship-band",
+      "title": "Worship band",
+      "description": "Logic Pro stems: vocals, piano, guitars, bass and drums",
+      "folder": "worship-band",
+      "tracks": [
+        "01 Vocals.mp3",
+        "02 Piano.mp3",
+        "03 Guitars.mp3",
+        "04 Bass.mp3",
+        "05 Drums.mp3"
+      ],
+      "config": "config.json",
+      "seconds": 96.1,
+      "rate": 48000,
+      "megabytes": 11.0
+    }
+  ]
 }

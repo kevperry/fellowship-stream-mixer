@@ -2,6 +2,6 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-config.json
-*.wav
+/config.json
+/*.wav
 recordings/
