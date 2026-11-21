@@ -49,6 +49,8 @@ function build() {
       fader: $(".fader", el), faderV: $(".fader-v", el),
       pan: $(".pan", el), reverb: $(".reverb", el), mute: $(".mute", el),
       link: $(".linkbox", el), auto: $(".auto", el), autoV: $(".auto b", el),
+      autoPanel: $(".auto-panel", el), alOn: $(".al-on", el), alRange: $(".al-range", el), arV: $(".ar-v", el),
+      alSpeed: $(".al-speed", el), asV: $(".as-v", el), alReset: $(".al-reset", el), lvlOff: $(".lvl-off", el),
       solo: $(".solo", el), tuneBtn: $(".tune-btn", el), tunePanel: $(".tune-panel", el),
       tuneNote: $(".tune-note", el), tuneCents: $(".tune-cents", el),
       tAmt: $(".tune-amount", el), tAmtV: $(".ta-v", el), tSpd: $(".tune-speed", el), tSpdV: $(".ts-v", el),
@@ -70,6 +72,11 @@ function build() {
     s.mute.addEventListener("click", () => setChannel(i, { mute: !cfg.channels[i].mute }));
     s.link.addEventListener("change", () => setChannel(i, { link: s.link.checked }));
     s.solo.addEventListener("click", () => setChannel(i, { solo: !CH(i).solo }));
+    s.auto.addEventListener("click", () => { s.autoOpen = !s.autoOpen; renderStripStatic(i); });
+    s.alOn.addEventListener("change", () => setChannel(i, { auto_level: s.alOn.checked }));
+    s.alRange.addEventListener("input", () => setChannel(i, { level_range: Number(s.alRange.value) }));
+    s.alSpeed.addEventListener("input", () => setChannel(i, { level_speed: Number(s.alSpeed.value) }));
+    s.alReset.addEventListener("click", () => setChannel(i, { auto_level: true, level_range: null, level_speed: null }));
     s.tuneBtn.addEventListener("click", () => setChannel(i, { tune: !CH(i).tune }));
     s.tAmt.addEventListener("input", () => setChannel(i, { tune_amount: Number(s.tAmt.value) }));
     s.tSpd.addEventListener("input", () => setChannel(i, { tune_speed_ms: Number(s.tSpd.value) }));
@@ -95,6 +102,19 @@ function renderStripStatic(i) {
   s.mute.classList.toggle("active", !!ch.mute);
   s.link.checked = !!ch.link;
   s.solo.classList.toggle("active", !!ch.solo);
+  const typeRange = (types.find((x) => x.id === ch.type) || {}).leveler_range ?? 0;
+  const lvlOn = ch.auto_level !== false;
+  const range = ch.level_range ?? typeRange, speed = ch.level_speed ?? 3;
+  s.autoPanel.hidden = !s.autoOpen || ch.type === "off";
+  s.auto.classList.toggle("open", !!s.autoOpen);
+  s.auto.classList.toggle("dim", !lvlOn);
+  s.lvlOff.hidden = lvlOn;
+  s.alOn.checked = lvlOn;
+  s.alRange.disabled = s.alSpeed.disabled = !lvlOn;
+  if (document.activeElement !== s.alRange) s.alRange.value = range;
+  if (document.activeElement !== s.alSpeed) s.alSpeed.value = speed;
+  s.arV.textContent = `±${Math.round(range)} dB` + (ch.level_range == null ? " (default)" : "");
+  s.asV.textContent = `${speed} dB/s` + (speed <= 1.5 ? " slow" : speed >= 6 ? " fast" : "");
   s.el.classList.toggle("soloed", !!ch.solo);
   const vocal = VOCAL_TYPES.includes(ch.type);
   s.tuneBtn.hidden = !vocal;

@@ -129,3 +129,15 @@ select { background: var(--panel-2); border: 1px solid var(--line); border-radiu
 .solo-alert { background: var(--warn); border-color: var(--warn); color: #1a1206; font-weight: 700; cursor: pointer;
   animation: blink 1.2s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: .65; } }
+
+/* ---- auto-level panel ---- */
+button.auto { width: 100%; border: 1px solid transparent; cursor: pointer; }
+button.auto:hover, button.auto.open { border-color: var(--line); }
+button.auto .caret { font-size: 9px; opacity: .6; }
+button.auto.dim b { color: var(--muted); }
+button.auto i { font-style: normal; font-size: 10px; color: var(--warn); }
+.auto-panel { display: flex; flex-direction: column; gap: 5px; background: var(--panel-2); border-radius: 6px; padding: 6px; }
+.auto-panel .check { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.auto-panel .mini output { float: none; display: block; font-size: 11px; }
+.auto-panel input:disabled { opacity: .4; }
+.al-reset { font-size: 11px; padding: 3px 6px; }

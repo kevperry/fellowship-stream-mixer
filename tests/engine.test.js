@@ -274,3 +274,18 @@ test("link gangs faders and settings but not pan", () => {
   const loaded = E.fsmNormalize({ channels: [{ type: "playback", fader_db: -4, link: true }, { type: "instrument", fader_db: 3, pan: 1, link: true }] }).channels;
   assert.ok(!loaded[0].link && loaded[1].type === "playback" && loaded[1].fader_db === -4 && loaded[1].pan === 1);
 });
+
+test("auto-level range, speed and off", () => {
+  const quiet = speech(20, -34);
+  const mk = (changes) => { const e = engine(["speech"]); if (changes) e.updateChannel(0, changes); return e; };
+  const def = mk(); run(def, [quiet]); assert.ok(def.strips[0].levDb > 10);
+  const narrow = mk({ level_range: 3 }); run(narrow, [quiet]);
+  assert.ok(narrow.strips[0].levDb > 2.5 && narrow.strips[0].levDb <= 3);
+  const four = quiet.subarray(0, 4 * FS);
+  const slow = mk({ level_speed: 1 }); run(slow, [four]);
+  const fast = mk({ level_speed: 10 }); run(fast, [four]);
+  assert.ok(fast.strips[0].levDb > slow.strips[0].levDb + 3);
+  def.updateChannel(0, { auto_level: false }); run(def, [quiet.subarray(0, 6 * FS)]);
+  assert.equal(def.strips[0].levDb, 0);
+  assert.equal(def.readMeters().channels[0].auto_level, false);
+});

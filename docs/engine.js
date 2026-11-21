@@ -39,6 +39,7 @@ const FSM_CHANNEL_DEFAULTS = {
   name: "", type: "off", trim_db: 0, fader_db: 0, mute: false, pan: 0,
   reverb_db: null, ducks_music: null, link: false,
   solo: false, tune: false, tune_amount: 50, tune_speed_ms: 150,
+  auto_level: true, level_range: null, level_speed: null,
 };
 
 // ---------------------------------------------------------------- filters
@@ -509,6 +510,9 @@ class Strip {
     this.tune = !!ch.tune;
     this.tuneAmount = Number(ch.tune_amount ?? 50) / 100;
     this.tuneSpeedMs = Number(ch.tune_speed_ms ?? 150);
+    this.autoLevel = ch.auto_level === undefined ? true : !!ch.auto_level;
+    this.levelRange = ch.level_range === null || ch.level_range === undefined ? null : Number(ch.level_range);
+    this.levelSpeed = ch.level_speed === null || ch.level_speed === undefined ? 3 : Number(ch.level_speed);
     if (FSM_VOCAL_TYPES.includes(this.type) && !this.tuner) this.tuner = new PitchCorrector(this.fs, this.block);
   }
   get tuning() { return this.tune && FSM_VOCAL_TYPES.includes(this.type); }
@@ -544,12 +548,20 @@ class Strip {
     if (this.gateDb < target) this.gateDb = Math.min(target, this.gateDb + 400 * dt);
     else this.gateDb = Math.max(target, this.gateDb - Math.abs(rng) / 0.25 * dt);
 
-    if (p.leveler_range > 0 && this.gateOpen && level > this.noiseFloor + CLOSE_ABOVE) {
-      this.avgDb += (level - this.avgDb) * (dt / 1.5);
-      const want = clamp(p.target_db - this.avgDb, -p.leveler_range, p.leveler_range);
-      const step = 3 * dt;
-      this.levDb += clamp(want - this.levDb, -step, step);
+    // leveler: adjustable range and speed per channel; switched off, it glides back to 0 dB
+    const levRange = this.levelRange === null ? p.leveler_range : this.levelRange;
+    const rate = this.levelSpeed;
+    let levWant = 0;
+    if (this.autoLevel && levRange > 0) {
+      if (this.gateOpen && level > this.noiseFloor + CLOSE_ABOVE) {
+        const tau = clamp(4.5 / rate, 0.5, 4);
+        this.avgDb += (level - this.avgDb) * (dt / tau);
+        levWant = clamp(p.target_db - this.avgDb, -levRange, levRange);
+      } else {
+        levWant = clamp(this.levDb, -levRange, levRange);
+      }
     }
+    this.levDb += clamp(levWant - this.levDb, -rate * dt, rate * dt);
 
     const lv = level + this.levDb;
     this.amEnv = lv > this.amEnv ? lv : Math.max(lv, this.amEnv - 20 * dt);
@@ -762,7 +774,7 @@ class Engine {
         in_peak: lin2db(this.pkIn[i]), out_peak: lin2db(this.pkOut[i]),
         out_level: Math.max(10 * Math.log10(s._outMs + FSM_EPS), -120),
         level: r1(s.level), noise_floor: r1(s.noiseFloor), active: s.gateOpen,
-        gate_db: r1(s.gateDb), leveler_db: r1(s.levDb), comp_db: r1(s.grDb),
+        gate_db: r1(s.gateDb), leveler_db: r1(s.levDb), auto_level: s.autoLevel, comp_db: r1(s.grDb),
         share_db: r1(s.amDb), duck_db: s.p.duckable ? r1(this.duckDb) : 0, solo: s.solo,
         tune_note: s.tuning && s.tuner && s.tuner.note !== null ? fsmNoteName(s.tuner.note) : null,
         tune_cents: s.tuning && s.tuner ? r1(s.tuner.cents) : 0,
@@ -785,7 +797,7 @@ class Engine {
 
 /** Settings a stereo-linked pair shares (everything except pan, name, solo). */
 const FSM_GANGED = ["fader_db", "mute", "trim_db", "reverb_db", "type", "tune", "tune_amount",
-  "tune_speed_ms", "ducks_music"];
+  "tune_speed_ms", "ducks_music", "auto_level", "level_range", "level_speed"];
 
 function fsmLinkGroup(channels, index) {
   let lo = index, hi = index;
@@ -842,6 +854,9 @@ function fsmValidateChannel(ch) {
     else if (k === "mute" || k === "link" || k === "solo" || k === "tune") out[k] = !!v;
     else if (k === "tune_amount") out[k] = fsmNum(v, 0, 100);
     else if (k === "tune_speed_ms") out[k] = fsmNum(v, 10, 500);
+    else if (k === "auto_level") out[k] = !!v;
+    else if (k === "level_range") out[k] = v === null ? null : fsmNum(v, 0, 24);
+    else if (k === "level_speed") out[k] = v === null ? null : fsmNum(v, 0.5, 12);
     else if (k === "ducks_music") out[k] = v === null ? null : !!v;
     else if (k === "input") out[k] = Math.max(1, v | 0);
     else throw new Error(`unknown channel setting ${k}`);

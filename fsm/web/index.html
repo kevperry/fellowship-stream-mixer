@@ -91,7 +91,15 @@
         <output class="fader-v"></output>
       </div>
     </div>
-    <div class="auto" title="">auto <b>0.0</b></div>
+    <button class="auto" title="">auto <b>0.0</b><i class="lvl-off" hidden> · lvl off</i> <span class="caret">▾</span></button>
+    <div class="auto-panel" hidden>
+      <label class="check"><input type="checkbox" class="al-on"> Auto level</label>
+      <label class="mini" title="How far the mixer may turn this channel up or down">Range <output class="ar-v"></output>
+        <input type="range" class="al-range" min="0" max="24" step="1"></label>
+      <label class="mini" title="How quickly it rides the level. Slower is smoother; faster catches sudden changes.">Speed <output class="as-v"></output>
+        <input type="range" class="al-speed" min="0.5" max="12" step="0.5"></label>
+      <button class="al-reset">Reset to default</button>
+    </div>
     <label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.05"></label>
     <label class="mini rvl">Reverb <input type="range" class="reverb" min="-40" max="0" step="1"></label>
     <div class="row btns">

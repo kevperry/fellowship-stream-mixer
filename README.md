@@ -129,6 +129,20 @@ settings**. Some tips:
   headset picks up the band and keeps ducking it. Set it back to **Auto** for the
   sermon. You can also turn off one mic's ducking in `config.json`
   (`"ducks_music": false`).
+- **Fine‑tuning the automatic level:** click a channel's **auto** readout to open
+  its panel:
+  - **Auto level**: untick it to stop the mixer riding this channel, for example
+    a playback track that's already mixed. Gating, compression and your fader
+    still apply.
+  - **Range**: how far it may turn the channel up or down. The default depends
+    on the source type: ±12 dB for speech, ±9 for vocals, ±6 for instruments and
+    playback, ±4 for drums.
+  - **Speed**: how quickly it rides, in dB per second (default 3). Slower is
+    smoother; faster catches sudden changes, such as a quiet prayer followed by
+    a loud announcement.
+
+  **Reset to default** puts all three back. Linked stereo pairs share these
+  settings.
 - **Solo** is for checking a channel. On the live app it changes **what the
   stream hears**, the same as on the practice page. While anything is soloed,
   a flashing **SOLO ACTIVE** button appears; click it to clear every solo. Solo
@@ -221,6 +235,7 @@ are read in name order, so `Track 1, Track 2, … Track 10`.
 | `channels[].ducks_music` | Override whether this mic ducks the music (`true`/`false`/`null`). |
 | `channels[].link` | Stereo‑link with the channel before it: faders, mute, trim, reverb, type and Tune are shared; pan is not. |
 | `channels[].tune`, `tune_amount`, `tune_speed_ms` | Pitch correction on/off (vocal types only), strength 0–100 %, and speed in ms (10–500). |
+| `channels[].auto_level`, `level_range`, `level_speed` | Ride this channel's level (true/false); how far, in ± dB (`null` = the source type's default); how fast, in dB per second (`null` = 3). |
 | `master.tune_key` | `"chromatic"` or a key such as `"G major"`, `"E minor"`, `"Bb major"`. |
 
 The per‑type sound (EQ, compression, targets) lives in `fsm/presets.py` if you

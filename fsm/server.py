@@ -53,6 +53,7 @@ class ControlServer:
                         "config": _finite(eng.snapshot_config()),
                         "types": [{"id": t, "label": PRESETS[t]["label"],
                                    "reverb_db": _f(PRESETS[t]["reverb_db"]),
+                                   "leveler_range": PRESETS[t]["leveler_range"],
                                    "ducks_music": PRESETS[t]["ducks_music"]} for t in TYPE_ORDER],
                         "can_save": app.config_path is not None,
                         "keys": KEYS,

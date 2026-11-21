@@ -43,7 +43,7 @@ NOISE_WINDOW_S = 20
 
 # Settings that a stereo-linked pair shares (everything except pan, name, solo).
 GANGED = ("fader_db", "mute", "trim_db", "reverb_db", "type", "tune", "tune_amount",
-          "tune_speed_ms", "ducks_music")
+          "tune_speed_ms", "ducks_music", "auto_level", "level_range", "level_speed")
 
 
 def link_group(channels: list, index: int) -> range:
@@ -145,6 +145,11 @@ class Strip:
         self.tune = bool(ch.get("tune", False))
         self.tune_amount = float(ch.get("tune_amount", 50.0)) / 100.0
         self.tune_speed_ms = float(ch.get("tune_speed_ms", 150.0))
+        self.auto_level = bool(ch.get("auto_level", True))
+        lr = ch.get("level_range")
+        self.level_range = None if lr is None else float(lr)
+        ls = ch.get("level_speed")
+        self.level_speed = 3.0 if ls is None else float(ls)
         if self.type in VOCAL_TYPES and self.tuner is None:
             self.tuner = PitchCorrector(self.fs, self.block)
 
@@ -202,12 +207,21 @@ class Strip:
         else:
             self.gate_db = max(target, self.gate_db - abs(rng) / 0.25 * dt)  # closes in 250 ms
 
-        # Leveler: only learns while the source is actually active.
-        if p["leveler_range"] > 0 and self.gate_open and level > self.noise_floor + GATE_CLOSE_ABOVE_FLOOR:
-            self.avg_db += (level - self.avg_db) * (dt / 1.5)
-            want = _clip(p["target_db"] - self.avg_db, -p["leveler_range"], p["leveler_range"])
-            step = 3.0 * dt  # at most 3 dB per second
-            self.lev_db += _clip(want - self.lev_db, -step, step)
+        # Leveler: only learns while the source is actually active. Range and speed are
+        # adjustable per channel; switched off, it glides back to 0 dB.
+        rng = p["leveler_range"] if self.level_range is None else self.level_range
+        rate = self.level_speed                       # dB per second
+        if self.auto_level and rng > 0:
+            if self.gate_open and level > self.noise_floor + GATE_CLOSE_ABOVE_FLOOR:
+                tau = _clip(4.5 / rate, 0.5, 4.0)    # listens longer when slow (1.5 s at 3 dB/s)
+                self.avg_db += (level - self.avg_db) * (dt / tau)
+                want = _clip(p["target_db"] - self.avg_db, -rng, rng)
+            else:
+                want = _clip(self.lev_db, -rng, rng)  # hold, but respect a narrowed range
+        else:
+            want = 0.0
+        step = rate * dt
+        self.lev_db += _clip(want - self.lev_db, -step, step)
 
         # Smoothed level for gain sharing: fast up, ~20 dB/s down, so a talker
         # keeps their share between syllables.
@@ -459,6 +473,7 @@ class Engine:
                     "active": bool(s.gate_open),
                     "gate_db": round(s.gate_db, 1),
                     "leveler_db": round(s.lev_db, 1),
+                    "auto_level": bool(s.auto_level),
                     "comp_db": round(s.gr_db, 1),
                     "share_db": round(s.am_db, 1),
                     "duck_db": round(self.duck_db, 1) if s.p["duckable"] else 0.0,
@@ -525,6 +540,12 @@ def _validate_channel_changes(ch: dict) -> dict:
             out[k] = _num(v, 0, 100)
         elif k == "tune_speed_ms":
             out[k] = _num(v, 10, 500)
+        elif k == "auto_level":
+            out[k] = bool(v)
+        elif k == "level_range":
+            out[k] = None if v is None else _num(v, 0, 24)
+        elif k == "level_speed":
+            out[k] = None if v is None else _num(v, 0.5, 12)
         elif k == "ducks_music":
             out[k] = None if v is None else bool(v)
         else:

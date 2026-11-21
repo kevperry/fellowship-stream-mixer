@@ -327,3 +327,29 @@ def test_loading_a_config_lines_up_linked_pairs():
         cfgmod.channel(input=2, type="instrument", fader_db=3, pan=1, link=True)]})
     c0, c1 = cfg["channels"]
     assert c0["link"] is False and c1["type"] == "playback" and c1["fader_db"] == -4 and c1["pan"] == 1
+
+
+# ---- auto-level controls -----------------------------------------------------
+
+def test_auto_level_range_speed_and_off():
+    quiet = speech_like(20, level_db=-34)[:, None]          # wants about +14 dB
+    default = make_engine(["speech"]); run(default, quiet)
+    assert default.strips[0].lev_db > 10                     # speech default range is 12
+
+    narrow = make_engine(["speech"]); narrow.update_channel(0, {"level_range": 3}); run(narrow, quiet)
+    assert 2.5 < narrow.strips[0].lev_db <= 3.0
+
+    slow = make_engine(["speech"]); slow.update_channel(0, {"level_speed": 1}); run(slow, quiet[: 4 * FS])
+    fast = make_engine(["speech"]); fast.update_channel(0, {"level_speed": 10}); run(fast, quiet[: 4 * FS])
+    assert fast.strips[0].lev_db > slow.strips[0].lev_db + 3
+
+    default.update_channel(0, {"auto_level": False})        # switched off: glides back to 0 dB
+    run(default, quiet[: 6 * FS])
+    assert default.strips[0].lev_db == 0.0
+    assert default.read_meters()["channels"][0]["auto_level"] is False
+
+    narrow.update_channel(0, {"level_range": None})          # back to the type's default range
+    run(narrow, quiet[: 8 * FS])
+    assert narrow.strips[0].lev_db > 6
+    with pytest.raises(ValueError):
+        narrow.update_channel(0, {"level_speed": "fast"})

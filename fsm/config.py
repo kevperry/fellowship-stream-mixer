@@ -41,6 +41,9 @@ CHANNEL_DEFAULTS = {
     "tune": False,        # light pitch correction (vocal channels only)
     "tune_amount": 50.0,  # % of the way to the nearest note
     "tune_speed_ms": 150.0,  # how quickly it corrects; slower keeps vibrato
+    "auto_level": True,   # let the mixer ride this channel's level
+    "level_range": None,  # +/- dB it may move it; None = the source type's default
+    "level_speed": None,  # dB per second; None = 3
 }
 
 EXAMPLE_CHANNELS = [
