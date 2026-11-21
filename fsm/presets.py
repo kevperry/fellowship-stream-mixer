@@ -28,7 +28,7 @@ PRESETS: dict[str, dict] = {
         "reverb_db": NEG_INF,
     },
     "lead_vocal": {
-        "label": "Lead vocal",
+        "label": "Vocal",
         "hpf": 100, "hpf_order": 4,
         "eq": [("peak", 300, -2.0, 1.0), ("peak", 3500, 2.0, 1.0), ("highshelf", 10000, 2.0, 0.7)],
         "target_db": -20.0, "leveler_range": 9.0,
@@ -36,16 +36,6 @@ PRESETS: dict[str, dict] = {
         "gate_range": -10.0, "gate_hold": 0.40,
         "automix": False, "ducks_music": False, "duckable": False,
         "reverb_db": -16.0,
-    },
-    "bg_vocal": {
-        "label": "Background vocal",
-        "hpf": 140, "hpf_order": 4,
-        "eq": [("peak", 250, -3.0, 1.0), ("peak", 3000, -1.0, 1.0), ("highshelf", 10000, 1.5, 0.7)],
-        "target_db": -25.0, "leveler_range": 9.0,
-        "comp_above": 2.0, "ratio": 4.0,
-        "gate_range": -15.0, "gate_hold": 0.40,
-        "automix": False, "ducks_music": False, "duckable": False,
-        "reverb_db": -14.0,
     },
     "instrument": {
         "label": "Instrument",
@@ -88,4 +78,10 @@ PRESETS: dict[str, dict] = {
     },
 }
 
-TYPE_ORDER = ["speech", "lead_vocal", "bg_vocal", "instrument", "drums", "playback", "off"]
+TYPE_ORDER = ["speech", "lead_vocal", "instrument", "drums", "playback", "off"]
+
+# Types that count as "music is playing" (the vocal reverb rests when none are).
+MUSIC_TYPES = ("instrument", "drums", "playback")
+
+# Older settings files may use types that no longer exist.
+RENAMED_TYPES = {"bg_vocal": "lead_vocal"}

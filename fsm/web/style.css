@@ -141,3 +141,5 @@ button.auto i { font-style: normal; font-size: 10px; color: var(--warn); }
 .auto-panel .mini output { float: none; display: block; font-size: 11px; }
 .auto-panel input:disabled { opacity: .4; }
 .al-reset { font-size: 11px; padding: 3px 6px; }
+
+.pill.rest { color: var(--text); border-color: var(--accent); }

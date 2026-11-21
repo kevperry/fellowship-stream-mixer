@@ -33,7 +33,7 @@ from . import config as cfgmod
 from .dsp import (FilterChain, Limiter, LoudnessMeter, Reverb, biquad, db2lin,
                   highpass_sections, lin2db, power_db)
 from .pitch import KEYS, VOCAL_TYPES, PitchCorrector, note_name, scale_notes
-from .presets import PRESETS
+from .presets import MUSIC_TYPES, PRESETS
 
 NOISE_FLOOR_MIN = -85.0
 NOISE_FLOOR_MAX = -45.0
@@ -263,6 +263,9 @@ class Engine:
         self.agc_prev = 1.0
         self.duck_db = 0.0
         self.duck_hold = 0.0
+        self.music_hold = 0.0
+        self.music_active = False
+        self.rev_gain = 1.0          # reverb send level: rests at 0 when no music is playing
         self.speech_active = False
         self.any_solo = False
         self.bypass_mix = 1.0 if m["bypass"] else 0.0
@@ -354,6 +357,8 @@ class Engine:
 
         self._gain_sharing()
         self._ducking(m)
+        rev_prev = self.rev_gain
+        self._reverb_rest()
 
         new_gain = np.zeros(C)
         for i, s in enumerate(strips):
@@ -373,7 +378,8 @@ class Engine:
         mix = np.stack([out @ pan_l, out @ pan_r], axis=1) if C else np.zeros((n, 2))
 
         sends = np.array([s.send for s in strips])
-        wet = self.reverb.process(out @ sends if C else np.zeros(n))
+        rev_ramp = rev_prev + (self.rev_gain - rev_prev) * self._ramp[:, 0]
+        wet = self.reverb.process((out @ sends) * rev_ramp if C else np.zeros(n))
         mix += wet * db2lin(m["reverb_return_db"])
 
         # Stream loudness leveler (open loop: measure the bus, steer the gain).
@@ -435,10 +441,33 @@ class Engine:
             else:
                 s.am_db = max(want, s.am_db - 40.0 * self.dt)
 
+    def _reverb_rest(self) -> None:
+        """Rest the reverb sends while no music is playing, so talking between songs is dry.
+
+        Music = any instrument, drums or playback channel clearly above its noise floor.
+        The sends fade out a second after the music stops (the last tail rings out
+        naturally, because only the sends are faded) and come back within ~0.1 s.
+        With no music channels in use at all, the reverb is left alone.
+        """
+        dt = self.dt
+        music = [s for s in self.strips if s.on and s.type in MUSIC_TYPES]
+        if not music:
+            self.music_active = True
+        else:
+            if any(s.level > s.noise_floor + 15.0 for s in music):
+                self.music_hold = 1.0
+            else:
+                self.music_hold -= dt
+            self.music_active = self.music_hold > 0
+        if self.music_active:
+            self.rev_gain = min(1.0, self.rev_gain + dt / 0.1)
+        else:
+            self.rev_gain = max(0.0, self.rev_gain - dt / 0.3)
+
     def _ducking(self, m: dict) -> None:
         dt = self.dt
         self.speech_active = any(s.on and s.ducks_music and s.gate_open for s in self.strips)
-        if m["ducking"] == "auto" and self.speech_active:
+        if self.speech_active:   # always automatic; per-mic "ducks_music" decides who triggers it
             self.duck_hold = 0.5
         else:
             self.duck_hold -= dt
@@ -491,6 +520,8 @@ class Engine:
                 "loudness_gain_db": round(self.agc_db, 1),
                 "limiter_db": round(float(lin2db(self.limiter.last_min_gain)), 1),
                 "speech_active": bool(self.speech_active),
+                "music_active": bool(self.music_active),
+                "reverb_resting": bool(self.rev_gain < 0.5),
                 "duck_db": round(self.duck_db, 1),
                 "bypass": bool(self.cfg["master"]["bypass"]),
                 "solo_active": bool(self.any_solo),

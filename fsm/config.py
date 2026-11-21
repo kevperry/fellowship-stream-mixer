@@ -6,7 +6,7 @@ import copy
 import json
 from pathlib import Path
 
-from .presets import PRESETS
+from .presets import PRESETS, RENAMED_TYPES
 
 DEFAULT_MASTER = {
     "target_lufs": -16.0,     # loudness the stream is held at
@@ -50,8 +50,8 @@ EXAMPLE_CHANNELS = [
     ("Pastor", "speech", 0.0),
     ("Pulpit", "speech", 0.0),
     ("Worship leader", "lead_vocal", 0.0),
-    ("BGV 1", "bg_vocal", -0.4),
-    ("BGV 2", "bg_vocal", 0.4),
+    ("BGV 1", "lead_vocal", -0.4),
+    ("BGV 2", "lead_vocal", 0.4),
     ("Acoustic", "instrument", -0.3),
     ("Keys L", "instrument", -0.7),
     ("Keys R", "instrument", 0.7),
@@ -93,6 +93,7 @@ def normalize(cfg: dict) -> dict:
     }
     for i, ch in enumerate(cfg.get("channels", [])):
         c = {**CHANNEL_DEFAULTS, **ch}
+        c["type"] = RENAMED_TYPES.get(c["type"], c["type"])
         c.setdefault("input", i + 1)
         c["input"] = int(c["input"])
         if c["input"] < 1:

@@ -135,8 +135,12 @@ test("music ducks under speech and recovers", () => {
   assert.ok(eng.duckDb > -0.5);
 });
 
-test("ducking can be switched off", () => {
-  const eng = engine(["speech", "instrument"], { ducking: "off" });
+test("ducking is automatic; a mic can be told not to duck music", () => {
+  const old = engine(["speech", "instrument"], { ducking: "off" });
+  run(old, [speech(6, -20), music(6, -24)]);
+  assert.ok(old.duckDb < -8);
+  const eng = engine(["speech", "instrument"]);
+  eng.updateChannel(0, { ducks_music: false });
   run(eng, [speech(6, -20), music(6, -24)]);
   assert.equal(eng.duckDb, 0);
 });
@@ -167,12 +171,12 @@ test("config validation", () => {
   assert.equal(E.fsmGuessType("03 Pastor Lav.wav"), "speech");
   assert.equal(E.fsmGuessType("Kick In.wav"), "drums");
   assert.equal(E.fsmGuessType("Click.wav"), "off");
-  assert.equal(E.fsmGuessType("BGV 2.wav"), "bg_vocal");
+  assert.equal(E.fsmGuessType("BGV 2.wav"), "lead_vocal");
 });
 
 test("16 channels at 96 kHz run inside real time", () => {
   const fs = 96000, block = E.fsmBlockSize(fs);
-  const chans = ["speech", "speech", "lead_vocal", "bg_vocal", "bg_vocal", "instrument", "instrument",
+  const chans = ["speech", "speech", "lead_vocal", "lead_vocal", "lead_vocal", "instrument", "instrument",
     "instrument", "instrument", "instrument", "drums", "drums", "drums", "drums", "playback", "playback"]
     .map((t, i) => ({ input: i + 1, type: t, reverb_db: t.includes("vocal") ? -14 : null }));
   const eng = new E.Engine({ channels: chans }, fs, block);
@@ -288,4 +292,20 @@ test("auto-level range, speed and off", () => {
   def.updateChannel(0, { auto_level: false }); run(def, [quiet.subarray(0, 6 * FS)]);
   assert.equal(def.strips[0].levDb, 0);
   assert.equal(def.readMeters().channels[0].auto_level, false);
+});
+
+test("reverb rests when a vocalist talks without music", () => {
+  const eng = engine(["lead_vocal", "instrument"]);
+  const band = [sung(440, 6, 0.2), music(6, -24)], talk = [speech(6, -20), noise(6, -66, 5)];
+  run(eng, band);
+  assert.ok(eng.musicActive && eng.revGain === 1);
+  run(eng, talk.map((t) => t.subarray(0, Math.floor(0.5 * FS))));
+  assert.equal(eng.revGain, 1);
+  run(eng, talk);
+  assert.ok(!eng.musicActive && eng.revGain === 0 && eng.readMeters().master.reverb_resting);
+  run(eng, band.map((t) => t.subarray(0, Math.floor(0.2 * FS))));
+  assert.equal(eng.revGain, 1);
+  const acap = engine(["lead_vocal", "speech"]);
+  run(acap, [speech(5, -20), noise(5, -66, 2)]);
+  assert.equal(acap.revGain, 1);
 });

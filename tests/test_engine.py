@@ -123,8 +123,12 @@ def test_music_ducks_under_speech_and_recovers():
     assert eng.duck_db > -0.5
 
 
-def test_ducking_off():
-    eng = make_engine(["speech", "instrument"], ducking="off")
+def test_a_mic_can_be_told_not_to_duck_music():
+    eng = make_engine(["speech", "instrument"], ducking="off")   # old global switch: now ignored
+    run(eng, np.stack([speech_like(6, -20), music_like(6)], axis=1))
+    assert eng.duck_db < -8.0
+    eng = make_engine(["speech", "instrument"])
+    eng.update_channel(0, {"ducks_music": False})                   # per-mic instead
     run(eng, np.stack([speech_like(6, -20), music_like(6)], axis=1))
     assert eng.duck_db == 0.0
 
@@ -174,7 +178,7 @@ def test_render_roundtrip(tmp_path):
     cfg = cfgmod.normalize({"channels": [
         cfgmod.channel(input=1, type="speech"),
         cfgmod.channel(input=2, type="instrument"),
-        cfgmod.channel(input=3, type="bg_vocal")]})
+        cfgmod.channel(input=3, type="lead_vocal")]})
     out = tmp_path / "mix.wav"
     render(lambda fs, b: Engine(cfg, fs, b), src, str(out), progress=False)
     y, fs = sf.read(out)
@@ -183,7 +187,7 @@ def test_render_roundtrip(tmp_path):
 
 
 def test_sixteen_channels_run_well_inside_real_time():
-    types = [t for t, *_ in []] or ["speech", "speech", "lead_vocal", "bg_vocal", "bg_vocal",
+    types = [t for t, *_ in []] or ["speech", "speech", "lead_vocal", "lead_vocal", "lead_vocal",
                                     "instrument", "instrument", "instrument", "instrument",
                                     "instrument", "drums", "drums", "drums", "drums",
                                     "playback", "playback"]
@@ -353,3 +357,34 @@ def test_auto_level_range_speed_and_off():
     assert narrow.strips[0].lev_db > 6
     with pytest.raises(ValueError):
         narrow.update_channel(0, {"level_speed": "fast"})
+
+
+# ---- reverb rests when no music is playing ----------------------------------------
+
+
+def test_reverb_rests_when_a_vocalist_talks_without_music():
+    eng = make_engine(["lead_vocal", "instrument"])
+    secs = 6
+    band = np.stack([sung(440, secs, 0.2), music_like(secs)], axis=1)
+    talk = np.stack([speech_like(secs, -20), room_noise(secs, seed=5)], axis=1)
+    run(eng, band)
+    assert eng.music_active and eng.rev_gain == 1.0
+    assert not eng.read_meters()["master"]["reverb_resting"]
+    run(eng, talk[: int(0.5 * FS)])                   # song just ended: tail keeps its reverb
+    assert eng.rev_gain == 1.0
+    run(eng, talk)
+    assert not eng.music_active and eng.rev_gain == 0.0
+    assert eng.read_meters()["master"]["reverb_resting"]
+    run(eng, band[: int(0.2 * FS)])                   # band starts again: reverb back at once
+    assert eng.rev_gain == 1.0
+
+
+def test_reverb_left_alone_without_music_channels():
+    eng = make_engine(["lead_vocal", "speech"])        # a cappella / no band set up
+    run(eng, np.stack([speech_like(5, -20), room_noise(5)], axis=1))
+    assert eng.rev_gain == 1.0
+
+
+def test_old_background_vocal_settings_still_load():
+    cfg = cfgmod.normalize({"channels": [{"type": "bg_vocal", "name": "BGV"}]})
+    assert cfg["channels"][0]["type"] == "lead_vocal"

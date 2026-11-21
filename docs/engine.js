@@ -17,15 +17,16 @@ const lin2db = (x, floor = -120) => Math.max(20 * Math.log10(Math.max(x, FSM_EPS
 // BEGIN PRESETS (JSON — must match fsm/presets.py; -Infinity is written as null)
 const FSM_PRESETS = {
   "speech": {"label": "Speaker / Pastor", "hpf": 90, "hpf_order": 4, "eq": [["peak", 220, -2.0, 1.0], ["peak", 3200, 2.5, 0.9], ["highshelf", 9000, 1.5, 0.7]], "target_db": -20.0, "leveler_range": 12.0, "comp_above": 3.0, "ratio": 3.0, "gate_range": -12.0, "gate_hold": 0.3, "automix": true, "ducks_music": true, "duckable": false, "reverb_db": null},
-  "lead_vocal": {"label": "Lead vocal", "hpf": 100, "hpf_order": 4, "eq": [["peak", 300, -2.0, 1.0], ["peak", 3500, 2.0, 1.0], ["highshelf", 10000, 2.0, 0.7]], "target_db": -20.0, "leveler_range": 9.0, "comp_above": 3.0, "ratio": 3.0, "gate_range": -10.0, "gate_hold": 0.4, "automix": false, "ducks_music": false, "duckable": false, "reverb_db": -16.0},
-  "bg_vocal": {"label": "Background vocal", "hpf": 140, "hpf_order": 4, "eq": [["peak", 250, -3.0, 1.0], ["peak", 3000, -1.0, 1.0], ["highshelf", 10000, 1.5, 0.7]], "target_db": -25.0, "leveler_range": 9.0, "comp_above": 2.0, "ratio": 4.0, "gate_range": -15.0, "gate_hold": 0.4, "automix": false, "ducks_music": false, "duckable": false, "reverb_db": -14.0},
+  "lead_vocal": {"label": "Vocal", "hpf": 100, "hpf_order": 4, "eq": [["peak", 300, -2.0, 1.0], ["peak", 3500, 2.0, 1.0], ["highshelf", 10000, 2.0, 0.7]], "target_db": -20.0, "leveler_range": 9.0, "comp_above": 3.0, "ratio": 3.0, "gate_range": -10.0, "gate_hold": 0.4, "automix": false, "ducks_music": false, "duckable": false, "reverb_db": -16.0},
   "instrument": {"label": "Instrument", "hpf": 40, "hpf_order": 2, "eq": [["peak", 350, -1.5, 0.8]], "target_db": -24.0, "leveler_range": 6.0, "comp_above": 4.0, "ratio": 2.0, "gate_range": 0.0, "gate_hold": 0.5, "automix": false, "ducks_music": false, "duckable": true, "reverb_db": null},
   "drums": {"label": "Drums", "hpf": 45, "hpf_order": 2, "eq": [["peak", 400, -2.0, 1.0]], "target_db": -26.0, "leveler_range": 4.0, "comp_above": 6.0, "ratio": 2.0, "gate_range": 0.0, "gate_hold": 0.5, "automix": false, "ducks_music": false, "duckable": true, "reverb_db": null},
   "playback": {"label": "Playback (video / tracks)", "hpf": 25, "hpf_order": 2, "eq": [], "target_db": -22.0, "leveler_range": 6.0, "comp_above": 6.0, "ratio": 1.5, "gate_range": 0.0, "gate_hold": 0.5, "automix": false, "ducks_music": false, "duckable": true, "reverb_db": null},
   "off": {"label": "Off", "hpf": 20, "hpf_order": 2, "eq": [], "target_db": -24.0, "leveler_range": 0.0, "comp_above": 20.0, "ratio": 1.0, "gate_range": 0.0, "gate_hold": 0.5, "automix": false, "ducks_music": false, "duckable": false, "reverb_db": null}
 };
 // END PRESETS
-const FSM_TYPE_ORDER = ["speech", "lead_vocal", "bg_vocal", "instrument", "drums", "playback", "off"];
+const FSM_TYPE_ORDER = ["speech", "lead_vocal", "instrument", "drums", "playback", "off"];
+const FSM_MUSIC_TYPES = ["instrument", "drums", "playback"];
+const FSM_RENAMED_TYPES = { bg_vocal: "lead_vocal" };
 
 const FSM_DEFAULT_MASTER = {
   target_lufs: -16, ceiling_db: -1, ducking: "auto", duck_depth_db: -9,
@@ -327,7 +328,7 @@ class Reverb {
 const FSM_NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 const FSM_SCALES = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
 const FSM_KEYS = ["chromatic"].concat(...FSM_NOTE_NAMES.map((n) => [`${n} major`, `${n} minor`]));
-const FSM_VOCAL_TYPES = ["lead_vocal", "bg_vocal"];
+const FSM_VOCAL_TYPES = ["lead_vocal"];
 const PITCH_FMIN = 70, PITCH_FMAX = 1000, DEADBAND_CENTS = 3;
 
 function fsmScaleNotes(key) {
@@ -593,6 +594,7 @@ class Engine {
     this.limiter = new Limiter(fs, block, this.cfg.master.ceiling_db);
     this.agcDb = 0; this.agcPrev = 1;
     this.duckDb = 0; this.duckHold = 0; this.speechActive = false; this.anySolo = false;
+    this.musicHold = 0; this.musicActive = false; this.revGain = 1;
     this.bypassMix = this.cfg.master.bypass ? 1 : 0;
     const n = block;
     this.mixL = new Float64Array(n); this.mixR = new Float64Array(n);
@@ -650,6 +652,8 @@ class Engine {
     const audible = strips.map((s, i) => s.on && (soloed[i] || !this.anySolo));
     this.gainSharing();
     this.ducking(m);
+    const revPrev = this.revGain;
+    this.reverbRest();
 
     const mixL = this.mixL, mixR = this.mixR, send = this.send;
     mixL.fill(0); mixR.fill(0); send.fill(0);
@@ -675,6 +679,8 @@ class Engine {
       s._outPk = pk; s._outMs = ss / n;
     });
 
+    const rg0 = revPrev, drg = (this.revGain - revPrev) / n;
+    if (rg0 !== 1 || drg !== 0) for (let i = 0; i < n; i++) send[i] *= rg0 + drg * (i + 1);
     this.reverb.process(send, this.wetL, this.wetR);
     const rr = db2lin(m.reverb_return_db);
     for (let i = 0; i < n; i++) { mixL[i] += this.wetL[i] * rr; mixR[i] += this.wetR[i] * rr; }
@@ -738,10 +744,22 @@ class Engine {
     });
   }
 
+  /** Rest the reverb sends while no music is playing (see fsm/engine.py _reverb_rest). */
+  reverbRest() {
+    const dt = this.dt;
+    const music = this.strips.filter((s) => s.on && FSM_MUSIC_TYPES.includes(s.type));
+    if (!music.length) this.musicActive = true;
+    else {
+      if (music.some((s) => s.level > s.noiseFloor + 15)) this.musicHold = 1; else this.musicHold -= dt;
+      this.musicActive = this.musicHold > 0;
+    }
+    this.revGain = this.musicActive ? Math.min(1, this.revGain + dt / 0.1) : Math.max(0, this.revGain - dt / 0.3);
+  }
+
   ducking(m) {
     const dt = this.dt;
     this.speechActive = this.strips.some((s) => s.on && s.ducksMusic && s.gateOpen);
-    if (m.ducking === "auto" && this.speechActive) this.duckHold = 0.5; else this.duckHold -= dt;
+    if (this.speechActive) this.duckHold = 0.5; else this.duckHold -= dt;  // always automatic
     const want = this.duckHold > 0 ? m.duck_depth_db : 0;
     this.duckDb = want < this.duckDb ? Math.max(want, this.duckDb - 40 * dt) : Math.min(want, this.duckDb + 8 * dt);
   }
@@ -784,6 +802,7 @@ class Engine {
         momentary: r1(this.postMeter.momentary), short_term: r1(this.postMeter.shortTerm),
         loudness_gain_db: r1(this.agcDb), limiter_db: r1(lin2db(this.limiter.lastMinGain)),
         speech_active: this.speechActive, duck_db: r1(this.duckDb),
+        music_active: this.musicActive, reverb_resting: this.revGain < 0.5,
         bypass: !!this.cfg.master.bypass, solo_active: this.anySolo, dsp_load: r1(this.load * 100), xruns: this.xruns,
         sample_rate: this.fs, block: this.block,
       },
@@ -890,6 +909,7 @@ function fsmNormalize(cfg) {
     const c = Object.assign({}, FSM_CHANNEL_DEFAULTS, { input: i + 1 });
     const known = {};
     for (const k of Object.keys(ch)) if (k in FSM_CHANNEL_DEFAULTS || k === "input") known[k] = ch[k];
+    if (known.type in FSM_RENAMED_TYPES) known.type = FSM_RENAMED_TYPES[known.type];
     Object.assign(c, fsmValidateChannel(known));
     if (!c.name) c.name = `Ch ${c.input}`;
     c.solo = false; // solo never survives a reload
@@ -909,8 +929,7 @@ function fsmGuessType(name) {
   const has = (...w) => w.some((x) => s.includes(x));
   if (has("click", "cue", "talkback", "tb ")) return "off";
   if (has("pastor", "preach", "speak", "pulpit", "lectern", "podium", "announce", "host", "lav", "headset", "prayer")) return "speech";
-  if (has("bgv", "bv", "backing", "harmony", "choir")) return "bg_vocal";
-  if (has("vox", "vocal", "voc", "lead", "wl", "sing")) return "lead_vocal";
+  if (has("vox", "vocal", "voc", "lead", "wl", "sing", "bgv", "bv", "backing", "harmony", "choir")) return "lead_vocal";
   if (has("kick", "snare", "tom", "hat", "oh", "overhead", "drum", "cajon", "perc")) return "drums";
   if (has("track", "playback", "pb", "video", "laptop", "media", "propres", "spotify", "ipad")) return "playback";
   return "instrument";

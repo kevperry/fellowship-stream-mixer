@@ -41,15 +41,6 @@
           <option value="-23">–23 LUFS (broadcast)</option>
         </select>
       </label>
-      <label>Music ducking
-        <select id="ducking">
-          <option value="auto">Auto — music steps back for speech</option>
-          <option value="off">Off (worship set)</option>
-        </select>
-      </label>
-      <label>Duck depth <output id="duckv"></output>
-        <input type="range" id="duck" min="-20" max="0" step="1">
-      </label>
       <label>Reverb return <output id="rvv"></output>
         <input type="range" id="rv" min="-24" max="6" step="1">
       </label>
@@ -60,6 +51,7 @@
     <div class="master-readouts">
       <button class="pill solo-alert" id="solo-alert" hidden title="Click to clear all solos">SOLO ACTIVE — click to clear</button>
       <div class="pill" id="speech">Music level normal</div>
+      <div class="pill" id="reverb-state" title="Vocal reverb rests while no instrument, drums or playback is playing">Reverb on</div>
       <div class="stat"><span>Loudness gain</span><b id="agc">0.0 dB</b></div>
       <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
       <div class="stat"><span>Processing load</span><b id="load">–</b></div>
@@ -94,6 +86,7 @@
     <button class="auto" title="">auto <b>0.0</b><i class="lvl-off" hidden> · lvl off</i> <span class="caret">▾</span></button>
     <div class="auto-panel" hidden>
       <label class="check"><input type="checkbox" class="al-on"> Auto level</label>
+      <label class="check dm" title="Music steps back while this mic is in use. Untick for a mic that picks up the band, such as a pastor's headset during worship."><input type="checkbox" class="dm-on"> Ducks music</label>
       <label class="mini" title="How far the mixer may turn this channel up or down">Range <output class="ar-v"></output>
         <input type="range" class="al-range" min="0" max="24" step="1"></label>
       <label class="mini" title="How quickly it rides the level. Slower is smoother; faster catches sudden changes.">Speed <output class="as-v"></output>

@@ -5,7 +5,7 @@
 
 const $ = (s, el = document) => el.querySelector(s);
 const FLOOR = -60;
-const VOCAL_TYPES = ["lead_vocal", "bg_vocal"];
+const VOCAL_TYPES = ["lead_vocal"];
 const pct = (db) => Math.max(0, Math.min(100, ((db - FLOOR) / -FLOOR) * 100));
 const fmt = (v, d = 1) => (v > 0 ? "+" : "") + Number(v).toFixed(d);
 const fmtTime = (s) => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
@@ -254,6 +254,7 @@ function build() {
       fader: $(".fader", el), faderV: $(".fader-v", el), pan: $(".pan", el), reverb: $(".reverb", el),
       mute: $(".mute", el), link: $(".linkbox", el), auto: $(".auto", el), autoV: $(".auto b", el),
       autoPanel: $(".auto-panel", el), alOn: $(".al-on", el), alRange: $(".al-range", el), arV: $(".ar-v", el),
+      dmOn: $(".dm-on", el), dmRow: $(".dm", el),
       alSpeed: $(".al-speed", el), asV: $(".as-v", el), alReset: $(".al-reset", el), lvlOff: $(".lvl-off", el),
       solo: $(".solo", el), tuneBtn: $(".tune-btn", el), tunePanel: $(".tune-panel", el),
       tuneNote: $(".tune-note", el), tuneCents: $(".tune-cents", el),
@@ -275,6 +276,7 @@ function build() {
     s.solo.addEventListener("click", () => setChannel(i, { solo: !CH(i).solo }));
     s.auto.addEventListener("click", () => { s.autoOpen = !s.autoOpen; renderStripStatic(i); });
     s.alOn.addEventListener("change", () => setChannel(i, { auto_level: s.alOn.checked }));
+    s.dmOn.addEventListener("change", () => setChannel(i, { ducks_music: s.dmOn.checked }));
     s.alRange.addEventListener("input", () => setChannel(i, { level_range: Number(s.alRange.value) }));
     s.alSpeed.addEventListener("input", () => setChannel(i, { level_speed: Number(s.alSpeed.value) }));
     s.alReset.addEventListener("click", () => setChannel(i, { auto_level: true, level_range: null, level_speed: null }));
@@ -312,6 +314,8 @@ function renderStripStatic(i) {
   s.auto.classList.toggle("dim", !lvlOn);
   s.lvlOff.hidden = lvlOn;
   s.alOn.checked = lvlOn;
+  s.dmRow.hidden = ch.type !== "speech";
+  s.dmOn.checked = ch.ducks_music !== false;
   s.alRange.disabled = s.alSpeed.disabled = !lvlOn;
   if (document.activeElement !== s.alRange) s.alRange.value = range;
   if (document.activeElement !== s.alSpeed) s.alSpeed.value = speed;
@@ -338,8 +342,6 @@ function renderMaster() {
   if (![...sel.options].some((o) => o.value === tv)) sel.add(new Option(`${m.target_lufs} LUFS`, tv));
   sel.value = tv;
   $("#lufs-sub").textContent = `target ${String(m.target_lufs).replace("-", "–")}`;
-  $("#ducking").value = m.ducking;
-  $("#duck").value = m.duck_depth_db; $("#duckv").textContent = `${m.duck_depth_db} dB`;
   $("#rv").value = m.reverb_return_db; $("#rvv").textContent = `${fmt(m.reverb_return_db, 0)} dB`;
   const b = $("#bypass");
   b.textContent = m.bypass ? "Auto mix: OFF (plain faders)" : "Auto mix: ON";
@@ -365,6 +367,9 @@ function renderMeters(m) {
   const sp = $("#speech"), ducking = ms.duck_db < -0.5;
   sp.textContent = ducking ? `Speech — music ${ms.duck_db.toFixed(0)} dB` : ms.speech_active ? "Speech detected" : "Music level normal";
   sp.classList.toggle("live", ducking);
+  const rv = $("#reverb-state");
+  rv.textContent = ms.reverb_resting ? "Reverb resting — no music" : "Reverb on";
+  rv.classList.toggle("rest", !!ms.reverb_resting);
   if (state.playing) flash(`Playing · ${state.rate / 1000} kHz` + (ms.bypass ? " · automation bypassed" : ""));
   m.channels.forEach((c, i) => {
     const s = strips[i];
@@ -498,8 +503,6 @@ seek.addEventListener("input", () => {
 seek.addEventListener("change", () => { seekTo((seek.value / 1000) * state.frames); state.seeking = false; });
 
 $("#target").addEventListener("change", (e) => setMaster({ target_lufs: Number(e.target.value) }));
-$("#ducking").addEventListener("change", (e) => setMaster({ ducking: e.target.value }));
-$("#duck").addEventListener("input", (e) => setMaster({ duck_depth_db: Number(e.target.value) }));
 $("#rv").addEventListener("input", (e) => setMaster({ reverb_return_db: Number(e.target.value) }));
 $("#key").addEventListener("change", (e) => setMaster({ tune_key: e.target.value }));
 $("#solo-alert").addEventListener("click", () => {

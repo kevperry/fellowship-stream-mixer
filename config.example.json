@@ -57,7 +57,7 @@
     },
     {
       "name": "BGV 1",
-      "type": "bg_vocal",
+      "type": "lead_vocal",
       "trim_db": 0.0,
       "fader_db": 0.0,
       "mute": false,
@@ -69,7 +69,7 @@
     },
     {
       "name": "BGV 2",
-      "type": "bg_vocal",
+      "type": "lead_vocal",
       "trim_db": 0.0,
       "fader_db": 0.0,
       "mute": false,

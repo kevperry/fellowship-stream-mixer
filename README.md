@@ -11,8 +11,8 @@ done for them.
 
 ## What it does
 
-You tag each channel once with what's plugged into it: *Speaker/Pastor, Lead
-vocal, Background vocal, Instrument, Drums, Playback* or *Off*. From then on,
+You tag each channel once with what's plugged into it: *Speaker/Pastor, Vocal,
+Instrument, Drums, Playback* or *Off*. From then on,
 every 10 ms, it:
 
 | | |
@@ -21,7 +21,8 @@ every 10 ms, it:
 | **Rides the level** | A slow leveler brings a quiet talker up and a loud one down (±12 dB for speech). |
 | **Gates idle mics** | Mics nobody is using ease down. The gate threshold follows each mic's noise floor, so there's nothing to set. |
 | **Shares gain between speech mics** | Pastor, pulpit and lectern mics share one open mic's worth of gain, so there's no phasing or room boom. The last person who spoke stays up. |
-| **Ducks music under speech** | When someone talks, instruments and playback step back (−9 dB by default) and return smoothly afterwards. |
+| **Ducks music under speech** | When someone talks, instruments and playback step back (−9 dB) and return smoothly afterwards. Always automatic; untick **Ducks music** on a speech mic that picks up the band. |
+| **Rests the reverb between songs** | While no instrument, drums or playback is playing, the vocal reverb sends fade out, so a worship leader talking or praying is heard dry. The reverb returns the moment music starts, and the last note's tail rings out naturally. |
 | **Holds stream loudness** | Keeps the stream at a steady loudness target (−16 LUFS by default) and puts a limiter on the output so it never clips. |
 | **Adds reverb** | Vocals get a hall reverb send, since direct outs are dry. |
 | **Light pitch correction** | Optional, per vocal channel (**Tune**). It finds the note being sung and nudges it toward the nearest note in the song's key. **Amount** (0–100%) sets how far, and **Speed** sets how quickly. Slow speeds leave vibrato and expression alone. In‑tune singing passes through untouched. |
@@ -110,8 +111,9 @@ settings**. Some tips:
 
 - Use **Speaker / Pastor** for every spoken‑word mic: pastor's headset, pulpit,
   announcements, prayer mic. These share gain and duck the music.
-- Use **Lead vocal** for the worship leader. Lead vocals are *not* ducked, and
-  they don't duck the band, so singing over the band works as expected.
+- Use **Vocal** for every singer, worship leader and backing vocals alike.
+  Vocals are *not* ducked, and they don't duck the band, so singing over the
+  band works as expected.
 - For a stereo pair, such as keys L/R, playback L/R or overheads, tick **Link** on
   the right‑hand channel. It then works like a stereo pair on a console: moving
   either **fader** moves both, and mute, input trim, reverb send, source type and
@@ -125,10 +127,13 @@ settings**. Some tips:
 
 - **Faders** set the balance you want; the mixer keeps things around it. Double‑click
   a fader to reset it to 0.
-- **Music ducking** → set it to **Off** during the worship set if the pastor's
-  headset picks up the band and keeps ducking it. Set it back to **Auto** for the
-  sermon. You can also turn off one mic's ducking in `config.json`
-  (`"ducks_music": false`).
+- **Music ducking is automatic.** If a speech mic picks up the band and keeps
+  ducking it, such as a pastor's headset during worship, open that channel's
+  **auto** panel and untick **Ducks music**.
+- **Reverb** rests automatically while no music is playing, and the master
+  section shows "Reverb resting — no music". If the band's mics pick up the PA
+  strongly, the mixer may think music is still playing; lowering or muting those
+  channels between songs helps.
 - **Fine‑tuning the automatic level:** click a channel's **auto** readout to open
   its panel:
   - **Auto level**: untick it to stop the mixer riding this channel, for example
@@ -147,7 +152,7 @@ settings**. Some tips:
   stream hears**, the same as on the practice page. While anything is soloed,
   a flashing **SOLO ACTIVE** button appears; click it to clear every solo. Solo
   is never saved, so a restart always comes back un‑soloed.
-- **Tune** appears on Lead and Background vocal channels. Start around
+- **Tune** appears on Vocal channels. Start around
   **Amount 40–60%, Speed 150–250 ms** for a natural sound. Set **Song key**
   for each song so notes are pulled toward the right scale, or leave it on
   *Chromatic*. The strip shows the note it hears and the correction in cents
@@ -227,9 +232,9 @@ are read in name order, so `Track 1, Track 2, … Track 10`.
 | `audio.output_channels` | Which output channels get L/R, numbered from 1 (default `[1, 2]`). |
 | `audio.block_ms` | Processing block size. Raise it to 20 if you hear dropouts. |
 | `master.target_lufs` | Stream loudness target. −16 is a good default; YouTube normalises to −14. |
-| `master.ducking` / `duck_depth_db` | `"auto"` or `"off"`, and how far music dips under speech. |
+| `master.duck_depth_db` | How far music dips under speech (default −9). Ducking itself is always automatic. |
 | `channels[].input` | The desk channel / USB channel number. |
-| `channels[].type` | `speech`, `lead_vocal`, `bg_vocal`, `instrument`, `drums`, `playback`, `off`. |
+| `channels[].type` | `speech`, `lead_vocal` (shown as Vocal), `instrument`, `drums`, `playback`, `off`. |
 | `channels[].fader_db`, `mute`, `pan`, `trim_db` | Usual channel controls. `trim_db` adjusts input level before processing. |
 | `channels[].reverb_db` | Reverb send; `null` uses the source type's default. |
 | `channels[].ducks_music` | Override whether this mic ducks the music (`true`/`false`/`null`). |
