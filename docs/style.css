@@ -180,3 +180,17 @@ button.auto i { font-style: normal; font-size: 10px; color: var(--warn); }
 .al-reset { font-size: 11px; padding: 3px 6px; }
 
 .pill.rest { color: var(--text); border-color: var(--accent); }
+
+/* ---- tone (adaptive EQ + compressor) ---- */
+button.tone { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 4px;
+  font-size: 11px; color: var(--muted); padding: 4px 6px; border: 1px solid transparent; background: var(--panel-2); }
+button.tone:hover, button.tone.open { border-color: var(--line); }
+.eqbars { display: block; width: 42px; height: 20px; position: relative; }
+.eqbars::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--line); }
+.eqbars i { position: absolute; width: 4px; height: 0; bottom: 50%; background: var(--muted); border-radius: 1px;
+  transition: height 150ms; }
+.eqbars i.up { background: var(--ok); }
+.eqbars i.down { background: var(--accent); }
+.tone .gr { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 10.5px; }
+.tone-panel { display: flex; flex-direction: column; gap: 5px; background: var(--panel-2); border-radius: 6px; padding: 6px; }
+.tone-panel select { width: 100%; font-size: 11.5px; padding: 3px 4px; }

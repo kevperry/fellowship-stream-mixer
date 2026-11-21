@@ -93,6 +93,15 @@
         <input type="range" class="al-speed" min="0.5" max="12" step="0.5"></label>
       <button class="al-reset">Reset to default</button>
     </div>
+    <button class="tone" title="Tone: adaptive EQ and compressor — click to adjust">
+      <span class="eqbars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="gr">comp 0</span><span class="caret">▾</span>
+    </button>
+    <div class="tone-panel" hidden>
+      <label class="mini" title="The sound the adaptive EQ steers this channel toward">EQ <select class="eq-preset"></select></label>
+      <label class="mini" title="How strongly it corrects. 0% leaves the channel flat.">EQ amount <output class="ea-v"></output>
+        <input type="range" class="eq-amount" min="0" max="100" step="5"></label>
+      <label class="mini">Compressor <select class="comp-sel"></select></label>
+    </div>
     <label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.05"></label>
     <label class="mini rvl">Reverb <input type="range" class="reverb" min="-40" max="0" step="1"></label>
     <div class="row btns">

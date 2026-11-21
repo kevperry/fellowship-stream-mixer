@@ -34,6 +34,7 @@ from .dsp import (FilterChain, Limiter, LoudnessMeter, Reverb, biquad, db2lin,
                   highpass_sections, lin2db, power_db)
 from .pitch import KEYS, VOCAL_TYPES, PitchCorrector, note_name, scale_notes
 from .presets import MUSIC_TYPES, PRESETS
+from .tone import COMP_LEVELS, EQ_PRESETS, AdaptiveEQ, default_comp, default_eq_preset
 
 NOISE_FLOOR_MIN = -85.0
 NOISE_FLOOR_MAX = -45.0
@@ -43,7 +44,8 @@ NOISE_WINDOW_S = 20
 
 # Settings that a stereo-linked pair shares (everything except pan, name, solo).
 GANGED = ("fader_db", "mute", "trim_db", "reverb_db", "type", "tune", "tune_amount",
-          "tune_speed_ms", "ducks_music", "auto_level", "level_range", "level_speed")
+          "tune_speed_ms", "ducks_music", "auto_level", "level_range", "level_speed",
+          "eq_preset", "eq_amount", "comp")
 
 
 def link_group(channels: list, index: int) -> range:
@@ -93,7 +95,7 @@ def _clip(v, lo, hi):
 class Strip:
     """State and control logic for one input channel."""
 
-    def __init__(self, ch: dict, fs: float, block: int):
+    def __init__(self, ch: dict, fs: float, block: int, stagger: int = 0):
         self.fs = fs
         self.block = block
         self.dt = block / fs
@@ -101,6 +103,7 @@ class Strip:
         self.type = None
         self.tuner = None
         self.tune_mix = 0.0
+        self.adapt = AdaptiveEQ(fs, block, stagger)
         self.configure(ch)
 
         self.nf_ring: deque[float] = deque(maxlen=NOISE_WINDOW_S)
@@ -124,9 +127,7 @@ class Strip:
         if new_type != self.type:
             self.type = new_type
             self.p = PRESETS[new_type]
-            sections = highpass_sections(self.p["hpf"], self.fs, self.p["hpf_order"])
-            sections += [biquad(k, f, self.fs, g, q) for (k, f, g, q) in self.p["eq"]]
-            self.chain = FilterChain(sections)
+            self.chain = FilterChain(highpass_sections(self.p["hpf"], self.fs, self.p["hpf_order"]))
             self.avg_db = self.p["target_db"]
             self.lev_db = 0.0
         self.col = int(ch["input"]) - 1
@@ -150,6 +151,11 @@ class Strip:
         self.level_range = None if lr is None else float(lr)
         ls = ch.get("level_speed")
         self.level_speed = 3.0 if ls is None else float(ls)
+        ep = ch.get("eq_preset")
+        self.eq_preset = default_eq_preset(self.type, ch.get("name", "")) if ep is None else ep
+        self.eq_amount = float(ch.get("eq_amount", 50.0)) / 100.0
+        cp = ch.get("comp")
+        self.comp = default_comp(self.type) if cp is None else cp
         if self.type in VOCAL_TYPES and self.tuner is None:
             self.tuner = PitchCorrector(self.fs, self.block)
 
@@ -230,9 +236,10 @@ class Strip:
 
         # Compressor (soft knee) on the leveled signal.
         x = level + self.lev_db
-        over = x - (p["target_db"] + p["comp_above"])
+        comp = COMP_LEVELS[self.comp]
+        over = x - (p["target_db"] + comp["above"])
         knee = 6.0
-        slope = 1.0 / p["ratio"] - 1.0
+        slope = 1.0 / comp["ratio"] - 1.0
         if over <= -knee / 2:
             static = 0.0
         elif over < knee / 2:
@@ -251,7 +258,7 @@ class Engine:
         self.fs = float(fs)
         self.block = int(block)
         self.dt = self.block / self.fs
-        self.strips = [Strip(ch, self.fs, self.block) for ch in self.cfg["channels"]]
+        self.strips = [Strip(ch, self.fs, self.block, i) for i, ch in enumerate(self.cfg["channels"])]
         self.n_inputs = max([s.col + 1 for s in self.strips], default=0)
 
         self.reverb = Reverb(self.fs, self.block)
@@ -330,7 +337,9 @@ class Engine:
             if s.col < x.shape[1]:
                 raw[:, i] = x[:, s.col] * s.trim
             if s.type != "off":
-                eq[:, i] = s.chain.process(raw[:, i])
+                hp = s.chain.process(raw[:, i])
+                active = s.gate_open and s.level > s.noise_floor + 12.0
+                eq[:, i] = s.adapt.process(hp, active, s.eq_preset, s.eq_amount)
 
         levels = power_db(eq, axis=0) if C else np.zeros(0)
         # Stereo-linked pairs follow the louder side so the image stays put.
@@ -504,6 +513,9 @@ class Engine:
                     "leveler_db": round(s.lev_db, 1),
                     "auto_level": bool(s.auto_level),
                     "comp_db": round(s.gr_db, 1),
+                    "eq_gains": [round(float(g), 1) for g in s.adapt.gains],
+                    "eq_preset": s.eq_preset,
+                    "comp": s.comp,
                     "share_db": round(s.am_db, 1),
                     "duck_db": round(self.duck_db, 1) if s.p["duckable"] else 0.0,
                     "solo": s.solo,
@@ -573,6 +585,16 @@ def _validate_channel_changes(ch: dict) -> dict:
             out[k] = _num(v, 10, 500)
         elif k == "auto_level":
             out[k] = bool(v)
+        elif k == "eq_preset":
+            if v is not None and v not in EQ_PRESETS:
+                raise ValueError(f"unknown EQ preset {v!r}")
+            out[k] = v
+        elif k == "eq_amount":
+            out[k] = _num(v, 0, 100)
+        elif k == "comp":
+            if v is not None and v not in COMP_LEVELS:
+                raise ValueError(f"unknown compressor setting {v!r}")
+            out[k] = v
         elif k == "level_range":
             out[k] = None if v is None else _num(v, 0, 24)
         elif k == "level_speed":

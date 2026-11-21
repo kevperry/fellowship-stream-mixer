@@ -1,6 +1,6 @@
 /* Practice page: load tracks, stream them to the mixer worklet, show the console. */
 /* global WavReader, naturalCompare, makeDemoTracks, fsmNormalize, fsmValidateChannel, fsmValidateMaster,
-   fsmGuessType, fsmGang, FSM_PRESETS, FSM_TYPE_ORDER, FSM_DEFAULT_AUDIO, FSM_KEYS, RemoteFile, openAudio, AUDIO_EXT, COMPRESSED_EXT */
+   fsmGuessType, fsmGang, FSM_TONE, FSM_PRESETS, FSM_TYPE_ORDER, FSM_DEFAULT_AUDIO, FSM_KEYS, RemoteFile, openAudio, AUDIO_EXT, COMPRESSED_EXT */
 "use strict";
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -19,6 +19,8 @@ const state = {
 };
 const strips = [];
 const CH = (i) => state.cfg.channels[i];
+const EQ_PRESET_LIST = Object.entries(FSM_TONE.eq_presets).map(([id, p]) => ({ id, label: p.label }));
+const COMP_LIST = Object.entries(FSM_TONE.comp_levels).map(([id, c]) => ({ id, label: c.label }));
 const held = new Map();
 
 function flash(msg) { $("#status").textContent = msg; }
@@ -255,6 +257,9 @@ function build() {
       mute: $(".mute", el), link: $(".linkbox", el), auto: $(".auto", el), autoV: $(".auto b", el),
       autoPanel: $(".auto-panel", el), alOn: $(".al-on", el), alRange: $(".al-range", el), arV: $(".ar-v", el),
       dmOn: $(".dm-on", el), dmRow: $(".dm", el),
+      tone: $(".tone", el), tonePanel: $(".tone-panel", el), eqBars: [...el.querySelectorAll(".eqbars i")],
+      gr: $(".tone .gr", el), eqSel: $(".eq-preset", el), eqAmt: $(".eq-amount", el), eaV: $(".ea-v", el),
+      compSel: $(".comp-sel", el),
       alSpeed: $(".al-speed", el), asV: $(".as-v", el), alReset: $(".al-reset", el), lvlOff: $(".lvl-off", el),
       solo: $(".solo", el), tuneBtn: $(".tune-btn", el), tunePanel: $(".tune-panel", el),
       tuneNote: $(".tune-note", el), tuneCents: $(".tune-cents", el),
@@ -277,6 +282,12 @@ function build() {
     s.auto.addEventListener("click", () => { s.autoOpen = !s.autoOpen; renderStripStatic(i); });
     s.alOn.addEventListener("change", () => setChannel(i, { auto_level: s.alOn.checked }));
     s.dmOn.addEventListener("change", () => setChannel(i, { ducks_music: s.dmOn.checked }));
+    for (const e of EQ_PRESET_LIST) s.eqSel.add(new Option(e.label, e.id));
+    for (const c of COMP_LIST) s.compSel.add(new Option(c.label, c.id));
+    s.tone.addEventListener("click", () => { s.toneOpen = !s.toneOpen; renderStripStatic(i); });
+    s.eqSel.addEventListener("change", () => setChannel(i, { eq_preset: s.eqSel.value }));
+    s.eqAmt.addEventListener("input", () => setChannel(i, { eq_amount: Number(s.eqAmt.value) }));
+    s.compSel.addEventListener("change", () => setChannel(i, { comp: s.compSel.value }));
     s.alRange.addEventListener("input", () => setChannel(i, { level_range: Number(s.alRange.value) }));
     s.alSpeed.addEventListener("input", () => setChannel(i, { level_speed: Number(s.alSpeed.value) }));
     s.alReset.addEventListener("click", () => setChannel(i, { auto_level: true, level_range: null, level_speed: null }));
@@ -315,6 +326,13 @@ function renderStripStatic(i) {
   s.lvlOff.hidden = lvlOn;
   s.alOn.checked = lvlOn;
   s.dmRow.hidden = ch.type !== "speech";
+  s.tone.hidden = ch.type === "off";
+  s.tonePanel.hidden = !s.toneOpen || ch.type === "off";
+  s.tone.classList.toggle("open", !!s.toneOpen);
+  if (ch.eq_preset != null && document.activeElement !== s.eqSel) s.eqSel.value = ch.eq_preset;
+  if (ch.comp != null && document.activeElement !== s.compSel) s.compSel.value = ch.comp;
+  if (document.activeElement !== s.eqAmt) s.eqAmt.value = ch.eq_amount ?? 50;
+  s.eaV.textContent = `${Math.round(ch.eq_amount ?? 50)}%`;
   s.dmOn.checked = ch.ducks_music !== false;
   s.alRange.disabled = s.alSpeed.disabled = !lvlOn;
   if (document.activeElement !== s.alRange) s.alRange.value = range;
@@ -376,6 +394,18 @@ function renderMeters(m) {
     if (!s) return;
     meter(s.mIn, c.in_peak); meter(s.mOut, c.out_peak);
     s.led.classList.toggle("on", c.active);
+    if (c.eq_gains) c.eq_gains.forEach((g, k) => {
+      const b = s.eqBars[k];
+      b.style.height = `${Math.min(9, Math.abs(g) * 1.5)}px`;
+      b.style.left = `${k * 6}px`;
+      if (g >= 0) { b.style.bottom = "50%"; b.style.top = "auto"; } else { b.style.top = "50%"; b.style.bottom = "auto"; }
+      b.className = g > 0.2 ? "up" : g < -0.2 ? "down" : "";
+    });
+    s.gr.textContent = c.comp === "off" ? "comp off" : `comp ${Math.abs(c.comp_db) < 0.05 ? "0" : c.comp_db.toFixed(1)}`;
+    s.tone.title = `Tone — EQ: ${c.eq_gains ? c.eq_gains.map((g, k) => `${["125", "250", "500", "1k", "2k", "4k", "8k"][k]} ${fmt(g)}`).join(", ") : ""}\nClick to adjust`;
+    const ch = CH(i);
+    if (ch && ch.eq_preset == null && document.activeElement !== s.eqSel) s.eqSel.value = c.eq_preset;
+    if (ch && ch.comp == null && document.activeElement !== s.compSel) s.compSel.value = c.comp;
     if (!s.tunePanel.hidden) {
       s.tuneNote.textContent = c.tune_note || "–";
       s.tuneCents.textContent = c.tune_note && Math.abs(c.tune_cents) >= 1 ? `${fmt(c.tune_cents, 0)}¢` : "";

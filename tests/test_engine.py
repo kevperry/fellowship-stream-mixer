@@ -388,3 +388,83 @@ def test_reverb_left_alone_without_music_channels():
 def test_old_background_vocal_settings_still_load():
     cfg = cfgmod.normalize({"channels": [{"type": "bg_vocal", "name": "BGV"}]})
     assert cfg["channels"][0]["type"] == "lead_vocal"
+
+
+# ---- adaptive EQ and compressor ---------------------------------------------------
+
+def shaped_voice(seconds, tweak=None, seed=0, level=-20.0):
+    """A talker whose tone matches the spoken-voice target, with optional per-band
+    changes in dB, e.g. {250: 9} for a boomy mic or {4000: -10} for a dull one."""
+    from scipy.signal import butter, sosfilt
+    from fsm.tone import BANDS, EQ_PRESETS
+    tweak = tweak or {}
+    rng = np.random.default_rng(seed)
+    n = int(seconds * FS)
+    t = np.arange(n) / FS
+    x = np.zeros(n)
+    for fc in BANDS:
+        db = EQ_PRESETS["speech"]["target"].get(fc, -12) + tweak.get(fc, 0)
+        sos = butter(4, [fc / 2 ** 0.5, min(fc * 2 ** 0.5, FS * 0.47)], "bandpass", fs=FS, output="sos")
+        b = sosfilt(sos, rng.standard_normal(n))
+        x += b / np.std(b) * 10 ** (db / 20)
+    syll = np.clip(np.sin(2 * np.pi * 4 * t), 0, None) ** 0.7
+    phrase = np.sin(2 * np.pi * 0.25 * t) > -0.6
+    x = x * syll * phrase
+    x = x / np.sqrt(np.mean(x[phrase] ** 2)) * db2lin(level)
+    return x + room_noise(seconds, seed=seed + 11)
+
+
+def eq_after(source, preset="speech", amount=1.0, secs=40, typ="speech"):
+    eng = make_engine([typ])
+    eng.update_channel(0, {"eq_preset": preset, "eq_amount": amount * 100})
+    run(eng, source(secs)[:, None])
+    return dict(zip((125, 250, 500, 1000, 2000, 4000, 8000), eng.strips[0].adapt.gains))
+
+
+def test_adaptive_eq_cuts_boom_and_lifts_a_dull_mic():
+    plain = eq_after(lambda s: shaped_voice(s))
+    boomy = eq_after(lambda s: shaped_voice(s, {250: 9}))
+    dull = eq_after(lambda s: shaped_voice(s, {4000: -10, 8000: -10}))
+    assert all(abs(v) < 1.0 for v in plain.values())     # already on target: nearly flat
+    assert boomy[250] < -4                                # the boom is pulled down
+    assert dull[4000] > 1.5 and dull[8000] > 1.5          # the missing presence comes back
+    for g in (boomy, plain, dull):
+        assert g[125] <= 0 and g[250] <= 0                # lows are cut-only
+        assert all(-6.0 <= v <= 3.0 for v in g.values())
+
+
+def test_adaptive_eq_amount_zero_and_off_are_flat():
+    zero = eq_after(lambda s: shaped_voice(s, {250: 9}), amount=0.0, secs=8)
+    off = eq_after(lambda s: shaped_voice(s, {250: 9}), preset="off", secs=8)
+    assert all(v == 0 for v in zero.values()) and all(v == 0 for v in off.values())
+
+
+def test_default_eq_presets_and_compressor():
+    from fsm.tone import default_comp, default_eq_preset
+    assert default_eq_preset("instrument", "Bass DI") == "bass"
+    assert default_eq_preset("instrument", "Acoustic Gtr") == "guitar"
+    assert default_eq_preset("instrument", "Keys L") == "keys"
+    assert default_eq_preset("lead_vocal", "BGV 1") == "vocal"
+    assert default_eq_preset("playback", "Track") == "off"
+    assert default_comp("speech") == "mild" and default_comp("playback") == "light"
+    eng = make_engine(["instrument"])
+    eng.process(np.zeros((BLOCK, 1)))
+    c = eng.read_meters()["channels"][0]
+    assert c["eq_preset"] == "instrument" and c["comp"] == "mild" and len(c["eq_gains"]) == 7
+
+
+def test_compressor_strengths():
+    loud = speech_like(8, level_db=-8)[:, None]          # well above every threshold
+    grs = {}
+    for level in ("off", "light", "mild", "medium", "firm"):
+        eng = make_engine(["speech"])
+        eng.update_channel(0, {"comp": level, "auto_level": False})
+        worst = 0.0
+        for i in range(0, len(loud) - BLOCK + 1, BLOCK):
+            eng.process(loud[i:i + BLOCK])
+            worst = min(worst, eng.strips[0].gr_db)
+        grs[level] = worst
+    assert grs["off"] == 0.0
+    assert grs["light"] > grs["mild"] > grs["medium"] > grs["firm"]
+    with pytest.raises(ValueError):
+        make_engine(["speech"]).update_channel(0, {"comp": "squash"})

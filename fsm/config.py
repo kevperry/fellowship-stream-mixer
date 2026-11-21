@@ -44,6 +44,9 @@ CHANNEL_DEFAULTS = {
     "auto_level": True,   # let the mixer ride this channel's level
     "level_range": None,  # +/- dB it may move it; None = the source type's default
     "level_speed": None,  # dB per second; None = 3
+    "eq_preset": None,    # adaptive EQ target; None = from the source type and name
+    "eq_amount": 50.0,    # how strongly the adaptive EQ corrects (0-100 %)
+    "comp": None,         # "off", "light", "mild", "medium", "firm"; None = mild (light for playback)
 }
 
 EXAMPLE_CHANNELS = [

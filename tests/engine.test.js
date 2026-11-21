@@ -309,3 +309,51 @@ test("reverb rests when a vocalist talks without music", () => {
   run(acap, [speech(5, -20), noise(5, -66, 2)]);
   assert.equal(acap.revGain, 1);
 });
+
+test("adaptive EQ cuts boom, never boosts lows; compressor strengths", () => {
+  // a talker whose tone matches the spoken-voice target, with per-band tweaks in dB
+  const voice = (secs, tweak = {}, seed = 4) => {
+    const n = Math.floor(secs * FS), x = new Float64Array(n), target = E.FSM_TONE.eq_presets.speech.target;
+    for (const fc of E.FSM_TONE.bands) {
+      const b = noise(secs, 0, seed + fc);
+      const hi = Math.min(fc * Math.SQRT2, FS * 0.47), lo = fc / Math.SQRT2;
+      new E.FilterChain([E.biquad("highpass", lo, FS), E.biquad("highpass", lo, FS), E.biquad("lowpass", hi, FS), E.biquad("lowpass", hi, FS)]).process(b);
+      let ss = 0; for (const v of b) ss += v * v;
+      const k = Math.pow(10, ((target[fc] ?? -12) + (tweak[fc] || 0)) / 20) / Math.sqrt(ss / n);
+      for (let i = 0; i < n; i++) x[i] += b[i] * k;
+    }
+    let ss = 0, cnt = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / FS, ph = Math.sin(2 * Math.PI * 0.25 * t) > -0.6 ? 1 : 0;
+      x[i] *= Math.pow(Math.max(0, Math.sin(2 * Math.PI * 4 * t)), 0.7) * ph;
+      if (ph) { ss += x[i] * x[i]; cnt++; }
+    }
+    const k = E.db2lin(-20) / Math.sqrt(ss / cnt), room = noise(secs, -66, seed + 11);
+    for (let i = 0; i < n; i++) x[i] = x[i] * k + room[i];
+    return x;
+  };
+  const boomy = voice(40, { 250: 9 });
+  const run1 = (x, preset, amount) => {
+    const eng = engine(["speech"]); eng.updateChannel(0, { eq_preset: preset, eq_amount: amount });
+    run(eng, [x]); return Array.from(eng.strips[0].adapt.gains);
+  };
+  const g = run1(boomy, "speech", 100), plain = run1(voice(40), "speech", 100);
+  assert.ok(plain.every((v) => Math.abs(v) < 1.5), `plain ${plain}`);
+  assert.ok(g[1] < plain[1] - 2, `250 Hz ${g[1]} vs ${plain[1]}`);  // same audio gives the same result as Python (checked separately)
+  for (const v of [...g, ...plain]) assert.ok(v >= -6 && v <= 3);
+  assert.ok(g[0] <= 0 && g[1] <= 0);
+  assert.deepEqual(run1(boomy.subarray(0, 8 * FS), "speech", 0), [0, 0, 0, 0, 0, 0, 0]);
+  assert.equal(E.fsmDefaultEqPreset("instrument", "Bass DI"), "bass");
+  assert.equal(E.fsmDefaultComp("playback"), "light");
+
+  const loud = speech(6, -8), grs = {};
+  for (const level of ["off", "light", "mild", "medium", "firm"]) {
+    const eng = engine(["speech"]); eng.updateChannel(0, { comp: level, auto_level: false });
+    let worst = 0;
+    for (let i = 0; i + BLOCK <= loud.length; i += BLOCK) { eng.process([loud.subarray(i, i + BLOCK)]); worst = Math.min(worst, eng.strips[0].grDb); }
+    grs[level] = worst;
+  }
+  assert.equal(grs.off, 0);
+  assert.ok(grs.light > grs.mild && grs.mild > grs.medium && grs.medium > grs.firm, JSON.stringify(grs));
+  assert.throws(() => engine(["speech"]).updateChannel(0, { comp: "squash" }));
+});

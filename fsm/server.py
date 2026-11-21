@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import config as cfgmod
 from .pitch import KEYS
+from .tone import COMP_LEVELS, COMP_ORDER, EQ_ORDER, EQ_PRESETS
 from .presets import PRESETS, TYPE_ORDER
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -57,6 +58,8 @@ class ControlServer:
                                    "ducks_music": PRESETS[t]["ducks_music"]} for t in TYPE_ORDER],
                         "can_save": app.config_path is not None,
                         "keys": KEYS,
+                        "eq_presets": [{"id": k, "label": EQ_PRESETS[k]["label"]} for k in EQ_ORDER],
+                        "comp_levels": [{"id": k, "label": COMP_LEVELS[k]["label"]} for k in COMP_ORDER],
                     })
                 name = "index.html" if path in ("/", "") else path.lstrip("/")
                 f = (WEB_DIR / name).resolve()

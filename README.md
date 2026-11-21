@@ -17,7 +17,9 @@ every 10 ms, it:
 
 | | |
 |---|---|
-| **Cleans up each source** | Applies a high‑pass filter, EQ and compression suited to the source type. No curves to draw. |
+| **Cleans up each source** | A high‑pass filter suited to the source type, then an **adaptive EQ** and a **mild compressor** (below). No curves to draw. |
+| **Adaptive EQ** | While a channel is active, it measures the channel's tone in seven bands (125 Hz–8 kHz) and slowly steers it toward a target sound for that kind of source. Boomy mics get their low‑mids cut, and dull ones get a touch of presence. Presets: Spoken voice, Vocal, Keys/piano, Guitar, Bass, Drum kit/overheads, Instrument (general), Off. It's deliberately gentle: it averages about 20 seconds of sound, ignores small differences (±2 dB for voices, ±4 dB for instruments), cuts at most 6 dB, boosts at most 3 dB and only from 1 kHz up, and moves at most 0.5 dB per second. |
+| **Mild compressor** | On every channel: Off, Light (1.5:1), **Mild (2:1, default)**, Medium (3:1) or Firm (4:1), set relative to the channel's level target. Playback defaults to Light. |
 | **Rides the level** | A slow leveler brings a quiet talker up and a loud one down (±12 dB for speech). |
 | **Gates idle mics** | Mics nobody is using ease down. The gate threshold follows each mic's noise floor, so there's nothing to set. |
 | **Shares gain between speech mics** | Pastor, pulpit and lectern mics share one open mic's worth of gain, so there's no phasing or room boom. The last person who spoke stays up. |
@@ -148,6 +150,13 @@ settings**. Some tips:
 
   **Reset to default** puts all three back. Linked stereo pairs share these
   settings.
+- **Tone:** each strip shows a small 7‑band picture of what the adaptive EQ is
+  doing (green = lifted, gold = cut) and the compressor's gain reduction. Click
+  it to change the **EQ** preset, **EQ amount** (0% = flat, default 50%) or
+  **Compressor**. The EQ preset starts from the source type and the channel's
+  name. A channel named *Bass* gets the Bass preset, *Acoustic Gtr* gets Guitar,
+  and *Keys* gets Keys/piano. Single drum mics (*Kick*, *Snare*, *Tom*, *Hat*)
+  start with EQ Off, because the kit target is for overheads or a stereo kit. Linked pairs share these settings.
 - **Solo** is for checking a channel. On the live app it changes **what the
   stream hears**, the same as on the practice page. While anything is soloed,
   a flashing **SOLO ACTIVE** button appears; click it to clear every solo. Solo
@@ -241,6 +250,7 @@ are read in name order, so `Track 1, Track 2, … Track 10`.
 | `channels[].link` | Stereo‑link with the channel before it: faders, mute, trim, reverb, type and Tune are shared; pan is not. |
 | `channels[].tune`, `tune_amount`, `tune_speed_ms` | Pitch correction on/off (vocal types only), strength 0–100 %, and speed in ms (10–500). |
 | `channels[].auto_level`, `level_range`, `level_speed` | Ride this channel's level (true/false); how far, in ± dB (`null` = the source type's default); how fast, in dB per second (`null` = 3). |
+| `channels[].eq_preset`, `eq_amount`, `comp` | Adaptive EQ target (`speech`, `vocal`, `keys`, `guitar`, `bass`, `drums`, `instrument`, `off`; `null` = automatic), strength 0–100 %, and compressor (`off`, `light`, `mild`, `medium`, `firm`; `null` = automatic). |
 | `master.tune_key` | `"chromatic"` or a key such as `"G major"`, `"E minor"`, `"Bb major"`. |
 
 The per‑type sound (EQ, compression, targets) lives in `fsm/presets.py` if you
