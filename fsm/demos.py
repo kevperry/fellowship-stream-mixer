@@ -54,7 +54,7 @@ def add_demo(source: str | Path, title: str, description: str = "", start: str |
 
     source = Path(source)
     files = ([source] if source.is_file() else
-             sorted((p for p in source.iterdir() if p.suffix.lower() in AUDIO_EXTS),
+             sorted((p for p in source.iterdir() if p.suffix.lower() in AUDIO_EXTS and not p.name.startswith("_")),
                     key=lambda p: [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", p.name)]))
     if not files:
         raise SystemExit(f"No audio files found in {source}")

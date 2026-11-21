@@ -468,3 +468,81 @@ def test_compressor_strengths():
     assert grs["light"] > grs["mild"] > grs["medium"] > grs["firm"]
     with pytest.raises(ValueError):
         make_engine(["speech"]).update_channel(0, {"comp": "squash"})
+
+
+# ---- stream polish ------------------------------------------------------------------
+
+def test_polish_glues_swells_gently_and_removes_rumble():
+    from fsm.dsp import Polish
+    pol = Polish(FS, BLOCK)
+    steady = np.tile(music_like(6, -24)[:, None], (1, 2))
+    swell = np.tile(music_like(2, -12)[:, None], (1, 2))        # +12 dB: a big chorus
+    grs = []
+    for x in (steady, swell):
+        for i in range(0, len(x) - BLOCK + 1, BLOCK):
+            pol.process(x[i:i + BLOCK]); grs.append(pol.gr_db)
+    steady_part = grs[: len(steady) // BLOCK]
+    assert min(steady_part[200:]) > -0.5                          # a steady mix is left alone
+    assert -4.0 <= min(grs) < -2.0                                # the swell is eased, never more than 4 dB
+    rumble = np.tile(np.sin(2 * np.pi * 15 * np.arange(FS) / FS)[:, None] * 0.3, (1, 2))
+    out = np.concatenate([Polish(FS, BLOCK).process(rumble[i:i + BLOCK]) for i in range(0, FS, BLOCK)])
+    assert power_db(out[FS // 2:, 0]) < power_db(rumble[FS // 2:, 0]) - 4
+
+
+def test_polish_switch_in_the_engine():
+    eng = make_engine(["lead_vocal", "instrument"])
+    x = np.stack([sung(440, 3, 0.2), music_like(3)], axis=1)
+    run(eng, x)
+    assert eng.read_meters()["master"]["polish"] is True
+    eng.update_master({"polish": False})
+    y = run(eng, x[:FS])
+    assert eng.polish_mix == 0.0 and np.all(np.isfinite(y))
+    assert eng.read_meters()["master"]["polish_db"] == 0.0
+
+
+# ---- recorder -----------------------------------------------------------------------
+
+def test_recorder_writes_every_input_the_mix_and_settings(tmp_path):
+    import soundfile as sf
+    from fsm.recorder import MIX_NAME, Recorder
+    chans = [cfgmod.channel(input=1, name="Pastor", type="speech"),
+             cfgmod.channel(input=3, name="Keys / Piano", type="instrument")]   # input 2 unused
+    eng = Engine(cfgmod.normalize({"channels": chans}), FS, BLOCK)
+    rec = Recorder(tmp_path / "recordings")
+    folder = rec.start(eng, eng.n_inputs)
+    x = np.stack([speech_like(2, -20), room_noise(2), music_like(2)], axis=1)
+    for i in range(0, len(x) - BLOCK + 1, BLOCK):
+        y = eng.process(x[i:i + BLOCK])
+        rec.push(x[i:i + BLOCK], y)
+    st = rec.status(FS)
+    assert st["active"] and st["bytes"] > 0
+    rec.stop()
+    names = sorted(p.name for p in folder.iterdir())
+    assert names == ["01 Pastor.wav", "02 Input 2.wav", "03 Keys - Piano.wav", MIX_NAME, "config.json"]
+    track, fs = sf.read(folder / "01 Pastor.wav")
+    assert fs == FS and len(track) == 2 * FS and np.allclose(track, x[:, 0], atol=1e-6)
+    mix, _ = sf.read(folder / MIX_NAME)
+    assert mix.shape == (2 * FS, 2)
+    saved = cfgmod.load(folder / "config.json")
+    assert [c["name"] for c in saved["channels"]] == ["Pastor", "Keys / Piano"]
+    # the folder plays back as a multitrack, skipping the stream mix
+    from fsm.audio_io import FileSource
+    src = FileSource(folder)
+    assert src.channels == 3 and all("stream mix" not in n for n in src.names)
+    src.close()
+    assert not rec.status(FS)["active"]
+
+
+def test_recorder_never_blocks_the_audio_thread(tmp_path):
+    from fsm.recorder import Recorder
+    eng = make_engine(["speech"])
+    rec = Recorder(tmp_path)
+    rec.start(eng, 1)
+    rec._q.maxsize = 1                                            # pretend the disk is stuck
+    import queue
+    rec._q = queue.Queue(maxsize=1)
+    for _ in range(5):
+        rec.push(np.zeros((BLOCK, 1)), np.zeros((BLOCK, 2)))     # returns immediately
+    assert rec.dropped >= 3
+    rec._q = queue.Queue()                                        # let the writer finish cleanly
+    rec.stop()

@@ -18,8 +18,9 @@ CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript",
 
 
 class ControlServer:
-    def __init__(self, host: str, port: int, config_path: str | None):
+    def __init__(self, host: str, port: int, config_path: str | None, recorder=None):
         self.engine = None
+        self.recorder = recorder
         self.config_path = config_path
         self.status = "starting"
         app = self
@@ -45,7 +46,9 @@ class ControlServer:
                     eng = app.engine
                     if eng is None:
                         return self._json(200, {"status": app.status})
-                    return self._json(200, {"status": "running", "meters": _finite(eng.read_meters())})
+                    rec = app.recorder.status(eng.fs) if app.recorder else None
+                    return self._json(200, {"status": "running", "meters": _finite(eng.read_meters()),
+                                            "recording": rec})
                 if path == "/api/config":
                     eng = app.engine
                     if eng is None:
@@ -82,6 +85,17 @@ class ControlServer:
                         changed = eng.update_channel(idx, body["changes"])
                         return self._json(200, _finite({"updated": [{"index": k, "channel": c}
                                                                     for k, c in changed.items()]}))
+                    if path == "/api/record":
+                        if app.recorder is None:
+                            raise ValueError("recording isn't available here")
+                        if body.get("on"):
+                            try:
+                                folder = app.recorder.start(eng, max(eng.n_inputs, 1))
+                            except (RuntimeError, OSError) as e:
+                                raise ValueError(str(e))
+                        else:
+                            folder = app.recorder.stop()
+                        return self._json(200, {"recording": app.recorder.status(eng.fs), "folder": str(folder)})
                     if path == "/api/clear_solo":
                         eng.clear_solo()
                         return self._json(200, {"ok": True})

@@ -25,6 +25,7 @@ every 10 ms, it:
 | **Shares gain between speech mics** | Pastor, pulpit and lectern mics share one open mic's worth of gain, so there's no phasing or room boom. The last person who spoke stays up. |
 | **Ducks music under speech** | When someone talks, instruments and playback step back (−9 dB) and return smoothly afterwards. Always automatic; untick **Ducks music** on a speech mic that picks up the band. |
 | **Rests the reverb between songs** | While no instrument, drums or playback is playing, the vocal reverb sends fade out, so a worship leader talking or praying is heard dry. The reverb returns the moment music starts, and the last note's tail rings out naturally. |
+| **Stream polish** | A gentle finish on the final mix: a 30 Hz rumble filter, a 1 dB dip at 300 Hz (mud) and a 1 dB lift above 8 kHz (clarity on phone speakers), plus 1.5:1 glue compression that only eases swells more than 4 dB above the mix's recent level, at most 4 dB. On by default; switch it in the master section. |
 | **Holds stream loudness** | Keeps the stream at a steady loudness target (−16 LUFS by default) and puts a limiter on the output so it never clips. |
 | **Adds reverb** | Vocals get a hall reverb send, since direct outs are dry. |
 | **Light pitch correction** | Optional, per vocal channel (**Tune**). It finds the note being sung and nudges it toward the nearest note in the song's key. **Amount** (0–100%) sets how far, and **Speed** sets how quickly. Slow speeds leave vibrato and expression alone. In‑tune singing passes through untouched. |
@@ -173,6 +174,28 @@ settings**. Some tips:
   Anyone on that network can then change the mix, so use it on the church's
   private network only.
 
+## Recording a service
+
+Click **● Record** in the control panel. Every desk input the mixer uses is
+saved as its own 24‑bit WAV file, numbered to match the desk (`01 Pastor.wav`,
+`02 Pulpit.wav` …). The finished stream mix is saved alongside as
+`_stream mix.wav`, and the settings at that moment as `config.json`. Everything
+goes into a dated folder under `recordings/`. Click **■ Stop recording** when
+you're done; quitting the mixer also stops and saves it.
+
+- The panel shows the running time, the size so far and the free disk space.
+  Recording stops by itself before the disk fills (it keeps 2 GB free).
+- Disk use is about **9 GB per hour** for 16 channels at 48 kHz, or **19 GB per
+  hour** at 96 kHz, which is the SQ's USB rate. An external SSD is a good home
+  for `record_dir`.
+- Writing to disk happens in the background, so a slow disk can't interrupt the
+  live mix. If the disk ever falls behind, the panel counts the gaps.
+- Drop the whole folder onto the practice page, or play it with
+  `python -m fsm run --play "recordings/<folder>"`. It opens with that service's
+  channel settings, and the stream‑mix file is skipped.
+- Recordings stay on the Mac and aren't uploaded anywhere. `recordings/` is
+  excluded from git.
+
 ## Practise in your browser (no install)
 
 **https://kevperry.github.io/fellowship-stream-mixer/**
@@ -239,6 +262,8 @@ are read in name order, so `Track 1, Track 2, … Track 10`.
 | `audio.input_device` | Part of the input device's name (`"SQ"`) or its number from `fsm devices`. |
 | `audio.output_device` | Where the stereo mix goes (`"BlackHole"`). |
 | `audio.output_channels` | Which output channels get L/R, numbered from 1 (default `[1, 2]`). |
+| `audio.record_dir` | Where the Record button saves (default `recordings`). |
+| `master.polish` | Stream polish on/off (default on). |
 | `audio.block_ms` | Processing block size. Raise it to 20 if you hear dropouts. |
 | `master.target_lufs` | Stream loudness target. −16 is a good default; YouTube normalises to −14. |
 | `master.duck_depth_db` | How far music dips under speech (default −9). Ducking itself is always automatic. |

@@ -357,3 +357,17 @@ test("adaptive EQ cuts boom, never boosts lows; compressor strengths", () => {
   assert.ok(grs.light > grs.mild && grs.mild > grs.medium && grs.medium > grs.firm, JSON.stringify(grs));
   assert.throws(() => engine(["speech"]).updateChannel(0, { comp: "squash" }));
 });
+
+test("stream polish eases swells gently and can be switched off", () => {
+  const eng = engine(["instrument"]);
+  run(eng, [music(6, -24)]);
+  assert.ok(eng.polish.grDb > -0.5);
+  let worst = 0;
+  const swell = music(2, -12);
+  for (let i = 0; i + BLOCK <= swell.length; i += BLOCK) { eng.process([swell.subarray(i, i + BLOCK)]); worst = Math.min(worst, eng.polish.grDb); }
+  assert.ok(worst < -1 && worst >= -4, `polish ${worst}`);
+  eng.updateMaster({ polish: false });
+  run(eng, [music(1, -24)]);
+  assert.equal(eng.polishMix, 0);
+  assert.equal(eng.readMeters().master.polish, false);
+});

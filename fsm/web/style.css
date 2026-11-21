@@ -157,3 +157,8 @@ button.tone:hover, button.tone.open { border-color: var(--line); }
 .tone .gr { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 10.5px; }
 .tone-panel { display: flex; flex-direction: column; gap: 5px; background: var(--panel-2); border-radius: 6px; padding: 6px; }
 .tone-panel select { width: 100%; font-size: 11.5px; padding: 3px 4px; }
+
+/* ---- recorder ---- */
+button.rec { color: var(--hot); font-weight: 600; }
+button.rec.on { background: var(--hot); border-color: var(--hot); color: #fff; animation: blink 1.2s ease-in-out infinite; }
+.rec-status { font-size: 12px; font-variant-numeric: tabular-nums; align-self: center; white-space: nowrap; }

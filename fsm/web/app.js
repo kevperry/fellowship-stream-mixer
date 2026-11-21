@@ -153,6 +153,7 @@ function renderMaster() {
   const ks = $("#key");
   if (ks.options.length !== keys.length) { ks.innerHTML = ""; for (const k of keys) ks.add(new Option(k === "chromatic" ? "Chromatic (any note)" : k, k)); }
   ks.value = m.tune_key || "chromatic";
+  $("#polish").value = m.polish === false ? "off" : "on";
   $("#target").value = String(Math.round(m.target_lufs));
   if (![...$("#target").options].some((o) => o.value === $("#target").value)) {
     $("#target").add(new Option(`${m.target_lufs} LUFS`, String(Math.round(m.target_lufs))));
@@ -168,9 +169,35 @@ function renderMaster() {
 $("#target").addEventListener("change", (e) => setMaster({ target_lufs: Number(e.target.value) }));
 $("#rv").addEventListener("input", (e) => setMaster({ reverb_return_db: Number(e.target.value) }));
 $("#key").addEventListener("change", (e) => setMaster({ tune_key: e.target.value }));
+$("#polish").addEventListener("change", (e) => setMaster({ polish: e.target.value === "on" }));
 $("#solo-alert").addEventListener("click", () =>
   api("/api/clear_solo", {}).then(() => { cfg.channels.forEach((c, i) => { c.solo = false; renderStripStatic(i); }); })
     .catch((e) => flash(e.message)));
+// ---- recorder
+let recording = false;
+const fmtSize = (b) => b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`;
+const fmtClock = (s) => { s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+  return `${h ? h + ":" + String(m).padStart(2, "0") : m}:${String(s % 60).padStart(2, "0")}`; };
+function renderRecording(r) {
+  recording = r.active;
+  const btn = $("#record"), st = $("#rec-status");
+  btn.classList.toggle("on", r.active);
+  btn.textContent = r.active ? "■ Stop recording" : "● Record";
+  if (r.active) {
+    st.hidden = false;
+    st.textContent = `REC ${fmtClock(r.seconds)} · ${fmtSize(r.bytes)}` +
+      (r.free_bytes != null ? ` · ${fmtSize(r.free_bytes)} free` : "") + (r.dropped ? ` · ${r.dropped} gaps` : "");
+  } else if (r.error) {
+    st.hidden = false; st.textContent = r.error;
+  } else if (r.folder && r.seconds > 0) {
+    st.hidden = false; st.textContent = `Saved ${fmtClock(r.seconds)} to ${r.folder.split("/").pop()}`;
+  } else st.hidden = true;
+}
+$("#record").addEventListener("click", () => {
+  if (recording && !confirm("Stop recording?")) return;
+  api("/api/record", { on: !recording }).then((r) => renderRecording(r.recording)).catch((e) => flash(e.message));
+});
+
 $("#bypass").addEventListener("click", () => setMaster({ bypass: !cfg.master.bypass }));
 $("#save").addEventListener("click", () =>
   api("/api/save", {}).then((r) => flash(`Saved to ${r.saved}`)).catch((e) => flash(e.message)));
@@ -191,6 +218,7 @@ function renderMeters(m) {
   meter($("#mR"), ms.peak_r);
   $("#agc").textContent = `${fmt(ms.loudness_gain_db)} dB`;
   $("#lim").textContent = `${ms.limiter_db.toFixed(1)} dB`;
+  $("#pol").textContent = ms.polish === false ? "off" : `${(ms.polish_db || 0).toFixed(1)} dB`;
   $("#load").textContent = `${ms.dsp_load.toFixed(0)}%` + (ms.xruns ? ` · ${ms.xruns} dropouts` : "");
   $("#solo-alert").hidden = !ms.solo_active;
   const sp = $("#speech");
@@ -253,6 +281,7 @@ async function start() {
     try {
       const st = await api("/api/state");
       if (st.meters && st.meters.channels) renderMeters(st.meters);
+      if (st.recording) renderRecording(st.recording);
     } catch (e) {
       flash("Lost connection to the mixer — is it still running?");
     }

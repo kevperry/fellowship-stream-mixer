@@ -16,6 +16,8 @@
     </div>
   </div>
   <div class="top-actions">
+    <span id="rec-status" class="rec-status muted" hidden></span>
+    <button id="record" class="rec" title="Record every desk channel and the stream mix to disk">● Record</button>
     <button id="bypass" class="toggle on" title="Compare the automatic mix with a plain fader mix">Auto mix: ON</button>
     <button id="save" class="ghost">Save settings</button>
   </div>
@@ -44,6 +46,9 @@
       <label>Reverb return <output id="rvv"></output>
         <input type="range" id="rv" min="-24" max="6" step="1">
       </label>
+      <label title="Gentle tone balance and glue compression on the final stream mix">Stream polish
+        <select id="polish"><option value="on">On — gentle tone + glue</option><option value="off">Off</option></select>
+      </label>
       <label>Song key (vocal tuning)
         <select id="key"></select>
       </label>
@@ -53,7 +58,8 @@
       <div class="pill" id="speech">Music level normal</div>
       <div class="pill" id="reverb-state" title="Vocal reverb rests while no instrument, drums or playback is playing">Reverb on</div>
       <div class="stat"><span>Loudness gain</span><b id="agc">0.0 dB</b></div>
-      <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
+      <div class="stat"><span>Polish</span><b id="pol">0.0 dB</b></div>
+        <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
       <div class="stat"><span>Processing load</span><b id="load">–</b></div>
     </div>
   </section>

@@ -30,7 +30,7 @@ from collections import deque
 import numpy as np
 
 from . import config as cfgmod
-from .dsp import (FilterChain, Limiter, LoudnessMeter, Reverb, biquad, db2lin,
+from .dsp import (FilterChain, Limiter, LoudnessMeter, Polish, Reverb, biquad, db2lin,
                   highpass_sections, lin2db, power_db)
 from .pitch import KEYS, VOCAL_TYPES, PitchCorrector, note_name, scale_notes
 from .presets import MUSIC_TYPES, PRESETS
@@ -266,6 +266,8 @@ class Engine:
         self.post_meter = LoudnessMeter(self.fs, self.block)
         m = self.cfg["master"]
         self.limiter = Limiter(self.fs, self.block, m["ceiling_db"])
+        self.polish = Polish(self.fs, self.block)
+        self.polish_mix = 1.0 if m.get("polish", True) else 0.0
         self.agc_db = 0.0
         self.agc_prev = 1.0
         self.duck_db = 0.0
@@ -390,6 +392,16 @@ class Engine:
         rev_ramp = rev_prev + (self.rev_gain - rev_prev) * self._ramp[:, 0]
         wet = self.reverb.process((out @ sends) * rev_ramp if C else np.zeros(n))
         mix += wet * db2lin(m["reverb_return_db"])
+
+        # Stream polish (tone + glue), crossfaded over 50 ms when switched.
+        p_prev = self.polish_mix
+        self.polish_mix = min(1.0, p_prev + dt / 0.05) if m.get("polish", True) else max(0.0, p_prev - dt / 0.05)
+        if p_prev > 0.0 or self.polish_mix > 0.0:
+            pol = self.polish.process(mix)
+            pm = p_prev + (self.polish_mix - p_prev) * self._ramp
+            mix = mix * (1.0 - pm) + pol * pm
+        else:
+            self.polish.gr_db = 0.0
 
         # Stream loudness leveler (open loop: measure the bus, steer the gain).
         self.pre_meter.update(mix)
@@ -530,6 +542,8 @@ class Engine:
                 "momentary": round(self.post_meter.momentary, 1),
                 "short_term": round(self.post_meter.short_term, 1),
                 "loudness_gain_db": round(self.agc_db, 1),
+                "polish": bool(self.cfg["master"].get("polish", True)),
+                "polish_db": round(self.polish.gr_db, 1),
                 "limiter_db": round(float(lin2db(self.limiter.last_min_gain)), 1),
                 "speech_active": bool(self.speech_active),
                 "music_active": bool(self.music_active),
@@ -621,6 +635,8 @@ def _validate_master_changes(m: dict) -> dict:
             if v not in ("auto", "off"):
                 raise ValueError("ducking must be 'auto' or 'off'")
             out[k] = v
+        elif k == "polish":
+            out[k] = bool(v)
         elif k == "bypass":
             out[k] = bool(v)
         elif k == "tune_key":

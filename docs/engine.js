@@ -33,7 +33,7 @@ const FSM_RENAMED_TYPES = { bg_vocal: "lead_vocal" };
 
 const FSM_DEFAULT_MASTER = {
   target_lufs: -16, ceiling_db: -1, ducking: "auto", duck_depth_db: -9,
-  reverb_return_db: 0, output_trim_db: 0, bypass: false, tune_key: "chromatic",
+  reverb_return_db: 0, output_trim_db: 0, bypass: false, polish: true, tune_key: "chromatic",
 };
 const FSM_DEFAULT_AUDIO = {
   input_device: "SQ", output_device: "BlackHole", output_channels: [1, 2],
@@ -203,6 +203,45 @@ class Limiter {
     for (let k = 0; k < tl; k++) this.hTail[k] = h[n - tl + k];
     this.gLast = g; this.lastMinGain = gmin;
     this.prevL.set(L); this.prevR.set(R);
+  }
+}
+
+// ---------------------------------------------------------------- stream polish
+// Port of fsm/dsp.py Polish: 30 Hz rumble filter, -1 dB at 300 Hz, +1 dB above 8 kHz,
+// and 1.5:1 glue compression above the mix's own recent level (max 4 dB).
+
+class Polish {
+  constructor(fs, block) {
+    this.dt = block / fs;
+    const sec = () => [biquad("highpass", 30, fs, 0, 0.7071), biquad("peak", 300, fs, -1, 0.8), biquad("highshelf", 8000, fs, 1, 0.7)];
+    this.fl = new FilterChain(sec()); this.fr = new FilterChain(sec());
+    this.programDb = null; this.grDb = 0; this.gainPrev = 1;
+    this.l = new Float64Array(block); this.r = new Float64Array(block);
+  }
+  /** Returns polished copies of L and R (inputs untouched). */
+  process(L, R) {
+    const n = L.length, l = this.l, r = this.r;
+    l.set(L); r.set(R); this.fl.process(l); this.fr.process(r);
+    let sl = 0, sr = 0;
+    for (let i = 0; i < n; i++) { sl += l[i] * l[i]; sr += r[i] * r[i]; }
+    const level = 10 * Math.log10(Math.max(sl, sr) / n + FSM_EPS);
+    if (level > -50) {
+      if (this.programDb === null) this.programDb = level;
+      this.programDb += (level - this.programDb) * (this.dt / 3);
+    }
+    let stat = 0;
+    if (this.programDb !== null) {
+      const over = level - (this.programDb + 4), slope = 1 / 1.5 - 1, knee = 6;
+      if (over >= knee / 2) stat = slope * over;
+      else if (over > -knee / 2) stat = slope * Math.pow(over + knee / 2, 2) / (2 * knee);
+      stat = Math.max(stat, -4);
+    }
+    const tau = stat < this.grDb ? 0.02 : 0.3;
+    this.grDb += (stat - this.grDb) * (1 - Math.exp(-this.dt / tau));
+    const g = db2lin(this.grDb), g0 = this.gainPrev, dg = (g - g0) / n;
+    for (let i = 0; i < n; i++) { const k = g0 + dg * (i + 1); l[i] *= k; r[i] *= k; }
+    this.gainPrev = g;
+    return [l, r];
   }
 }
 
@@ -693,6 +732,8 @@ class Engine {
     this.preMeter = new LoudnessMeter(fs, block);
     this.postMeter = new LoudnessMeter(fs, block);
     this.limiter = new Limiter(fs, block, this.cfg.master.ceiling_db);
+    this.polish = new Polish(fs, block);
+    this.polishMix = this.cfg.master.polish !== false ? 1 : 0;
     this.agcDb = 0; this.agcPrev = 1;
     this.duckDb = 0; this.duckHold = 0; this.speechActive = false; this.anySolo = false;
     this.musicHold = 0; this.musicActive = false; this.revGain = 1;
@@ -789,6 +830,17 @@ class Engine {
     this.reverb.process(send, this.wetL, this.wetR);
     const rr = db2lin(m.reverb_return_db);
     for (let i = 0; i < n; i++) { mixL[i] += this.wetL[i] * rr; mixR[i] += this.wetR[i] * rr; }
+
+    // stream polish, crossfaded over 50 ms when switched
+    const pPrev = this.polishMix, pStep = dt / 0.05;
+    this.polishMix = m.polish !== false ? Math.min(1, pPrev + pStep) : Math.max(0, pPrev - pStep);
+    if (pPrev > 0 || this.polishMix > 0) {
+      const [pl, pr] = this.polish.process(mixL, mixR), dp = (this.polishMix - pPrev) / n;
+      for (let i = 0; i < n; i++) {
+        const k = pPrev + dp * (i + 1);
+        mixL[i] = mixL[i] * (1 - k) + pl[i] * k; mixR[i] = mixR[i] * (1 - k) + pr[i] * k;
+      }
+    } else this.polish.grDb = 0;
 
     this.preMeter.update(mixL, mixR);
     const st = this.preMeter.shortTerm;
@@ -906,7 +958,7 @@ class Engine {
       master: {
         peak_l: lin2db(this.pkMaster[0]), peak_r: lin2db(this.pkMaster[1]),
         momentary: r1(this.postMeter.momentary), short_term: r1(this.postMeter.shortTerm),
-        loudness_gain_db: r1(this.agcDb), limiter_db: r1(lin2db(this.limiter.lastMinGain)),
+        loudness_gain_db: r1(this.agcDb), polish: this.cfg.master.polish !== false, polish_db: r1(this.polish.grDb), limiter_db: r1(lin2db(this.limiter.lastMinGain)),
         speech_active: this.speechActive, duck_db: r1(this.duckDb),
         music_active: this.musicActive, reverb_resting: this.revGain < 0.5,
         bypass: !!this.cfg.master.bypass, solo_active: this.anySolo, dsp_load: r1(this.load * 100), xruns: this.xruns,
@@ -1000,7 +1052,7 @@ function fsmValidateMaster(m) {
     else if (k === "duck_depth_db") out[k] = fsmNum(v, -24, 0);
     else if (k === "reverb_return_db" || k === "output_trim_db") out[k] = fsmNum(v, -24, 12);
     else if (k === "ducking") { if (v !== "auto" && v !== "off") throw new Error("ducking must be auto or off"); out[k] = v; }
-    else if (k === "bypass") out[k] = !!v;
+    else if (k === "bypass" || k === "polish") out[k] = !!v;
     else if (k === "tune_key") { if (!FSM_KEYS.includes(v)) throw new Error(`unknown key ${v}`); out[k] = v; }
     else throw new Error(`unknown master setting ${k}`);
   }

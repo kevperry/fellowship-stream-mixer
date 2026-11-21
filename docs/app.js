@@ -44,7 +44,15 @@ function remember() {
 async function loadFiles(fileList, opts = {}) {
   const err = $("#load-error");
   err.hidden = true;
-  const files = [...fileList].filter((f) => AUDIO_EXT.test(f.name)).sort((a, b) => naturalCompare(a.name, b.name));
+  // A folder saved by the Mac app's recorder holds config.json (that day's settings) and
+  // "_stream mix.wav"; names starting with "_" are not tracks.
+  const cfgFile = [...fileList].find((f) => f.name === "config.json" && typeof f.text === "function");
+  if (cfgFile && !opts.config) {
+    try { opts = Object.assign({}, opts, { config: JSON.parse(await cfgFile.text()), title: "the recording's settings" }); }
+    catch { /* ignore a bad settings file */ }
+  }
+  const files = [...fileList].filter((f) => AUDIO_EXT.test(f.name) && !f.name.startsWith("_"))
+    .sort((a, b) => naturalCompare(a.name, b.name));
   if (!files.length) { err.textContent = "No audio files found. Use WAV or MP3 tracks and try again."; err.hidden = false; return; }
   try {
     const compressed = files.filter((f) => COMPRESSED_EXT.test(f.name)).length;
@@ -87,7 +95,8 @@ async function loadFiles(fileList, opts = {}) {
     setTime(0);
     build();
     flash(saved ? "Loaded — your settings for these tracks were restored. Press play."
-      : opts.config ? `Loaded “${opts.title}”. Press play.` : "Loaded. Check each channel's type, then press play.");
+      : opts.config ? (opts.title === "the recording's settings" ? "Loaded with the recording's settings. Press play."
+        : `Loaded “${opts.title}”. Press play.`) : "Loaded. Check each channel's type, then press play.");
   } catch (e) {
     err.textContent = e.message; err.hidden = false; flash("Couldn't load those files.");
   }
@@ -356,6 +365,7 @@ function renderMaster() {
   const ks = $("#key");
   if (!ks.options.length) for (const k of FSM_KEYS) ks.add(new Option(k === "chromatic" ? "Chromatic (any note)" : k, k));
   ks.value = m.tune_key || "chromatic";
+  $("#polish").value = m.polish === false ? "off" : "on";
   const tv = String(Math.round(m.target_lufs));
   if (![...sel.options].some((o) => o.value === tv)) sel.add(new Option(`${m.target_lufs} LUFS`, tv));
   sel.value = tv;
@@ -380,6 +390,7 @@ function renderMeters(m) {
   meter($("#mL"), ms.peak_l); meter($("#mR"), ms.peak_r);
   $("#agc").textContent = `${fmt(ms.loudness_gain_db)} dB`;
   $("#lim").textContent = `${ms.limiter_db.toFixed(1)} dB`;
+  $("#pol").textContent = ms.polish === false ? "off" : `${(ms.polish_db || 0).toFixed(1)} dB`;
   $("#load").textContent = `${ms.dsp_load.toFixed(0)}%` + (ms.xruns ? ` · ${ms.xruns} gaps` : "");
   $("#solo-alert").hidden = !ms.solo_active;
   const sp = $("#speech"), ducking = ms.duck_db < -0.5;
@@ -535,6 +546,7 @@ seek.addEventListener("change", () => { seekTo((seek.value / 1000) * state.frame
 $("#target").addEventListener("change", (e) => setMaster({ target_lufs: Number(e.target.value) }));
 $("#rv").addEventListener("input", (e) => setMaster({ reverb_return_db: Number(e.target.value) }));
 $("#key").addEventListener("change", (e) => setMaster({ tune_key: e.target.value }));
+$("#polish").addEventListener("change", (e) => setMaster({ polish: e.target.value === "on" }));
 $("#solo-alert").addEventListener("click", () => {
   state.cfg.channels.forEach((c, i) => { if (c.solo) setChannel(i, { solo: false }); });
 });

@@ -101,7 +101,9 @@ def main(argv=None):
     from .audio_io import FileSource, run_files, run_live
     from .server import ControlServer
 
-    server = ControlServer(args.host, args.port, args.config)
+    from .recorder import Recorder
+    recorder = Recorder(cfg["audio"].get("record_dir") or "recordings")
+    server = ControlServer(args.host, args.port, args.config, recorder)
     server.start()
     url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
     stop = threading.Event()
@@ -121,12 +123,15 @@ def main(argv=None):
             audio["output_device"] = args.output
             audio["output_channels"] = [1, 2]
             run_files(factory, FileSource(args.play, loop=args.loop), audio, stop, ready,
-                      play=not args.no_audio)
+                      play=not args.no_audio, recorder=recorder)
         else:
             if args.output:
                 audio["output_device"] = args.output
-            run_live(factory, audio, stop, ready)
+            run_live(factory, audio, stop, ready, recorder=recorder)
     finally:
+        if recorder.active:
+            folder = recorder.stop()
+            print(f"Recording saved to {folder}")
         server.stop()
 
 

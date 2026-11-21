@@ -16,6 +16,7 @@ DEFAULT_MASTER = {
     "reverb_return_db": 0.0,
     "output_trim_db": 0.0,
     "bypass": False,          # A/B: true = plain fader mix, no automation
+    "polish": True,           # gentle tone balance + glue compression on the stream mix
     "tune_key": "chromatic",  # song key for vocal pitch correction, e.g. "G major"
 }
 
@@ -25,6 +26,7 @@ DEFAULT_AUDIO = {
     "output_channels": [1, 2],     # 1-based output channels for L/R
     "sample_rate": None,           # None = use the device's rate
     "block_ms": 10.0,
+    "record_dir": "recordings",    # where the Record button saves service recordings
 }
 
 CHANNEL_DEFAULTS = {

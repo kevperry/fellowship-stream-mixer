@@ -133,7 +133,8 @@ def build(demos_dir: Path = DEMOS, quiet: bool = False) -> dict:
     demos, problems, total = [], [], 0
     if demos_dir.is_dir() or demos_dir == DEMOS:
         for folder in _candidate_folders(demos_dir):
-            wavs = sorted((p for p in folder.iterdir() if p.suffix.lower() in AUDIO_EXTS and p.is_file()),
+            wavs = sorted((p for p in folder.iterdir()
+                           if p.suffix.lower() in AUDIO_EXTS and p.is_file() and not p.name.startswith("_")),
                           key=lambda p: natural_key(p.name))
             if not wavs:
                 continue

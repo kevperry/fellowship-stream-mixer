@@ -236,3 +236,56 @@ class Reverb:
         Y = np.einsum("pk,pkc->kc", self.fdl, self.H)
         y = np.fft.irfft(Y, n=2 * n, axis=0)
         return y[n:]
+
+
+# --------------------------------------------------------------------------
+# Stream polish: gentle tone balance + glue compression on the final mix
+# --------------------------------------------------------------------------
+
+class Polish:
+    """Gentle finishing for the stream mix.
+
+    Tone: 30 Hz rumble filter, -1 dB at 300 Hz (mud), +1 dB shelf above 8 kHz (air).
+    Glue: 1.5:1 soft-knee compression that only acts when the mix rises more than
+    4 dB above its own recent average, at most 4 dB, ~20 ms attack / ~300 ms release.
+    """
+
+    THRESHOLD_ABOVE = 4.0
+    RATIO = 1.5
+    KNEE = 6.0
+    MAX_GR = 4.0
+
+    def __init__(self, fs: float, block: int):
+        self.dt = block / fs
+        self.tone = FilterChain([
+            biquad("highpass", 30.0, fs, q=0.7071),
+            biquad("peak", 300.0, fs, -1.0, 0.8),
+            biquad("highshelf", 8000.0, fs, 1.0, 0.7),
+        ], channels=2)
+        self.program_db = None
+        self.gr_db = 0.0
+        self.gain_prev = 1.0
+        self.ramp = (np.arange(1, block + 1) / block)[:, None]
+
+    def process(self, x: np.ndarray) -> np.ndarray:
+        y = self.tone.process(x)
+        level = float(10.0 * np.log10(np.max(np.mean(y * y, axis=0)) + EPS))
+        if level > -50.0:   # learn the program level from real programme, not silence
+            if self.program_db is None:
+                self.program_db = level
+            self.program_db += (level - self.program_db) * (self.dt / 3.0)
+        static = 0.0
+        if self.program_db is not None:
+            over = level - (self.program_db + self.THRESHOLD_ABOVE)
+            slope = 1.0 / self.RATIO - 1.0
+            if over >= self.KNEE / 2:
+                static = slope * over
+            elif over > -self.KNEE / 2:
+                static = slope * (over + self.KNEE / 2) ** 2 / (2 * self.KNEE)
+            static = max(static, -self.MAX_GR)
+        tau = 0.02 if static < self.gr_db else 0.3
+        self.gr_db += (static - self.gr_db) * (1.0 - math.exp(-self.dt / tau))
+        g = float(db2lin(self.gr_db))
+        out = y * (self.gain_prev + (g - self.gain_prev) * self.ramp)
+        self.gain_prev = g
+        return out

@@ -73,7 +73,8 @@ class FileSource:
 
         path = Path(path)
         files = ([path] if path.is_file() else
-                 sorted((p for p in path.iterdir() if p.suffix.lower() in AUDIO_EXTS), key=_natural_key))
+                 sorted((p for p in path.iterdir()
+                         if p.suffix.lower() in AUDIO_EXTS and not p.name.startswith("_")), key=_natural_key))
         if not files:
             raise SystemExit(f"No audio files found in {path}")
         self.files = [sf.SoundFile(str(f)) for f in files]
@@ -124,7 +125,7 @@ class _Guard:
         self.last_error = traceback.format_exc(limit=2)
 
 
-def run_live(engine_factory, audio: dict, stop: threading.Event, on_ready=None):
+def run_live(engine_factory, audio: dict, stop: threading.Event, on_ready=None, recorder=None):
     """Mix the live inputs of the sound card (the SQ over USB) to the output device."""
     sd = _sd()
     in_idx, in_dev = find_device(audio.get("input_device"), "input")
@@ -153,6 +154,8 @@ def run_live(engine_factory, audio: dict, stop: threading.Event, on_ready=None):
         outdata.fill(0)
         try:
             y = engine.process(indata)
+            if recorder is not None:
+                recorder.push(indata, y)
             if len(out_ch) > 1:
                 outdata[:, out_ch[0]] = y[:, 0]
                 outdata[:, out_ch[1]] = y[:, 1]
@@ -175,7 +178,7 @@ def run_live(engine_factory, audio: dict, stop: threading.Event, on_ready=None):
 
 
 def run_files(engine_factory, source: FileSource, audio: dict, stop: threading.Event,
-              on_ready=None, play: bool = True):
+              on_ready=None, play: bool = True, recorder=None):
     """Play a multitrack recording through the mixer in real time."""
     fs = float(source.samplerate)
     block = int(round(fs * float(audio.get("block_ms", 10.0)) / 1000.0))
@@ -193,7 +196,10 @@ def run_files(engine_factory, source: FileSource, audio: dict, stop: threading.E
             stop.set()
             return np.zeros((block, 2), dtype=np.float32)
         try:
-            return engine.process(x)
+            y = engine.process(x)
+            if recorder is not None:
+                recorder.push(x, y)
+            return y
         except Exception:
             guard.report()
             return np.zeros((block, 2), dtype=np.float32)
