@@ -61,8 +61,18 @@
   </section>
 
   <div id="mixer" hidden>
-    <div class="top">
-      <section class="master card" aria-label="Stream output">
+    <div class="desk">
+      <div class="desk-main">
+        <section class="chpanel card" id="chpanel" aria-label="Channel settings"></section>
+
+      <section class="strips" id="strips" aria-label="Channels"></section>
+
+      <p class="hint muted">Each strip has the fader, pan, Mute, Solo, Link and a <b>Gate</b> slider (far left = auto).
+        <b>Link ◂</b> combines a channel with the one on its left into one stereo strip; <b>Unlink</b> splits it again.
+        Click a channel's name to open its <b>Channel settings</b>: drag the numbered points on the EQ curve, mouse wheel for width.</p>
+      </div>
+      <aside class="master card masterstrip" aria-label="Master">
+        <div class="ms-title">Master</div>
         <div class="loud">
           <div class="loud-label">Stream loudness</div>
           <div class="loud-value"><span id="lufs">–</span><small>LUFS</small></div>
@@ -71,6 +81,15 @@
         <div class="master-meters">
           <div class="meter wide"><div class="fill" id="mL"></div><span>L</span></div>
           <div class="meter wide"><div class="fill" id="mR"></div><span>R</span></div>
+        </div>
+        <div class="master-readouts">
+          <button class="pill solo-alert" id="solo-alert" hidden title="Click to clear all solos">SOLO ACTIVE — click to clear</button>
+          <div class="pill" id="speech">Music level normal</div>
+          <div class="pill" id="reverb-state" title="Vocal reverb rests while no instrument, drums or playback is playing">Reverb on</div>
+          <div class="stat"><span>Loudness gain</span><b id="agc">0.0 dB</b></div>
+          <div class="stat"><span>Polish</span><b id="pol">0.0 dB</b></div>
+          <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
+          <div class="stat"><span>Processing load</span><b id="load">–</b></div>
         </div>
         <div class="master-controls">
           <label>Target
@@ -91,24 +110,8 @@
             <select id="key"></select>
           </label>
         </div>
-        <div class="master-readouts">
-          <button class="pill solo-alert" id="solo-alert" hidden title="Click to clear all solos">SOLO ACTIVE — click to clear</button>
-          <div class="pill" id="speech">Music level normal</div>
-        <div class="pill" id="reverb-state" title="Vocal reverb rests while no instrument, drums or playback is playing">Reverb on</div>
-          <div class="stat"><span>Loudness gain</span><b id="agc">0.0 dB</b></div>
-          <div class="stat"><span>Polish</span><b id="pol">0.0 dB</b></div>
-          <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
-          <div class="stat"><span>Processing load</span><b id="load">–</b></div>
-        </div>
-      </section>
-      <section class="chpanel card" id="chpanel" aria-label="Channel settings"></section>
+      </aside>
     </div>
-
-    <section class="strips" id="strips" aria-label="Channels"></section>
-
-    <p class="hint muted">Each strip has the fader, pan, Mute, Solo, Link and a <b>Gate</b> slider (far left = auto).
-      <b>Link ◂</b> combines a channel with the one on its left into one stereo strip; <b>Unlink</b> splits it again.
-      Click a channel's name to open its <b>Channel settings</b>: drag the numbered points on the EQ curve, mouse wheel for width.</p>
   </div>
 </main>
 

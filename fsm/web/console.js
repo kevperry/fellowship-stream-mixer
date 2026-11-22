@@ -110,7 +110,7 @@ const FsmConsole = (() => {
         o.setChannel(lead, { gate_threshold: v <= GATE_AUTO ? null : v });
       });
       s.gate.addEventListener("dblclick", () => o.setChannel(lead, { gate_threshold: null }));
-      s.head.addEventListener("click", () => select(lead));
+      s.head.addEventListener("click", () => { select(lead); if (P && P.setCollapsed) P.setCollapsed(false); });
       s.fader.addEventListener("input", () => { s.faderV.textContent = fmt(s.fader.value); o.setChannel(lead, { fader_db: Number(s.fader.value) }); });
       s.fader.addEventListener("dblclick", () => o.setChannel(lead, { fader_db: 0 }));
       if (s.pan) {
@@ -193,6 +193,7 @@ const FsmConsole = (() => {
         <span class="cp-num"></span>
         <input class="cp-name" maxlength="32" aria-label="Channel name">
         <select class="cp-type" aria-label="Source type"></select>
+        <button class="cp-collapse" title="Hide or show the channel settings (clicking a channel's name opens them)">Hide ▴</button>
       </div>
       <section class="cp-eqbox">
         <div class="cp-eqbar">
@@ -230,7 +231,7 @@ const FsmConsole = (() => {
           <select class="cp-comp" aria-label="Compressor"></select>
           <div class="cp-gr"><div class="cp-gr-track"><div class="cp-gr-fill"></div></div><span class="cp-gr-v">0.0 dB</span></div>
           <h4>Reverb send</h4>
-          <label class="mini"><output class="cp-rv-v"></output><input type="range" class="cp-rv" min="-40" max="0" step="1"></label>
+          <label class="mini">Send <output class="cp-rv-v"></output><input type="range" class="cp-rv" min="-40" max="0" step="1"></label>
           <div class="cp-tune">
             <h4>Tune <span class="muted small">pitch correction</span></h4>
             <label class="check"><input type="checkbox" class="cp-tune-on"> On <b class="cp-note"></b><span class="cp-cents"></span></label>
@@ -252,6 +253,16 @@ const FsmConsole = (() => {
       tune: q(".cp-tune"), tuneOn: q(".cp-tune-on"), note: q(".cp-note"), cents: q(".cp-cents"),
       ta: q(".cp-ta"), taV: q(".cp-ta-v"), ts: q(".cp-ts"), tsV: q(".cp-ts-v"),
     };
+    P.collapse = q(".cp-collapse");
+    const setCollapsed = (v) => {
+      host.classList.toggle("collapsed", v);
+      P.collapse.textContent = v ? "Show ▾" : "Hide ▴";
+      try { localStorage.setItem("fsm:panelCollapsed", v ? "1" : ""); } catch { /* storage may be blocked */ }
+      if (!v) drawGraph();
+    };
+    P.setCollapsed = setCollapsed;
+    P.collapse.addEventListener("click", () => setCollapsed(!host.classList.contains("collapsed")));
+    try { if (localStorage.getItem("fsm:panelCollapsed")) setCollapsed(true); } catch { /* ignore */ }
     for (const t of o.types) P.type.add(new Option(t.label, t.id));
     for (const e of o.eqPresets) P.eq.add(new Option(e.label, e.id));
     for (const c of o.compLevels) P.comp.add(new Option(c.label, c.id));
@@ -292,7 +303,7 @@ const FsmConsole = (() => {
   }
 
   // ------------------------------------------------------------ EQ graph
-  const GFS = 48000, FMIN = 20, FMAX = 20000, DBMAX = 15, GH = 190;
+  const GFS = 48000, FMIN = 20, FMAX = 20000, DBMAX = 15, GH = 140;
   let draft = null;        // the curve being dragged (shown immediately, sent to the engine a few times a second)
   let sendTimer = 0;
 
@@ -492,8 +503,8 @@ const FsmConsole = (() => {
       (c.auto_level === false ? " · <b>off</b>" : "");
     P.target.title += "";
     const manual = ch.gate_threshold != null;
-    P.gthr.innerHTML = `Threshold <b>${manual ? `${ch.gate_threshold} dBFS` : `auto (${Math.round(c.gate_level)})`}</b>` +
-      `<span class="muted small"> · set with the strip's Gate slider</span>`;
+    P.gthr.innerHTML = `Threshold <b>${manual ? `${ch.gate_threshold} dBFS` : `auto (${Math.round(c.gate_level)})`}</b>`;
+    P.gthr.title = "Set the threshold with the Gate slider at the bottom of the channel strip (far left = auto).";
     P.gstate.textContent = c.gate_db < -0.5 ? `closed ${c.gate_db.toFixed(0)} dB` : "open";
     if (ch.eq_preset == null && notFocused(P.eq) && c.eq_preset) P.eq.value = c.eq_preset;
     if (ch.comp == null && notFocused(P.comp) && c.comp) P.comp.value = c.comp;

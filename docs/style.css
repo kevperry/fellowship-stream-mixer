@@ -318,3 +318,45 @@ button.auto, button.tone { overflow: hidden; white-space: nowrap; }
 .gmark.closed { border-color: var(--accent) !important; }
 .top { align-items: start; }
 .cp-graph { height: 190px; }
+
+/* ================= desk: channels (left) + slim master strip locked to the right ================= */
+.desk { display: flex; gap: 14px; align-items: flex-start; }
+.desk-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.desk-main .strips { overflow-x: auto; overscroll-behavior-x: contain; }
+.desk-main .hint { margin-top: 0; }
+.masterstrip.master { display: flex; flex-direction: column; gap: 12px; flex: 0 0 212px; width: 212px;
+  position: sticky; top: 78px; max-height: calc(100vh - 92px); overflow-y: auto; margin: 0; padding: 12px; }
+.ms-title { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 600;
+  border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.masterstrip .loud-value { font-size: 34px; }
+.masterstrip .master-meters { height: 230px; justify-content: center; gap: 12px; margin-bottom: 18px; flex: 0 0 auto; }
+.masterstrip .meter.wide { width: 24px; }
+.masterstrip .master-readouts { gap: 5px; }
+.masterstrip .master-controls { display: flex; flex-direction: column; gap: 10px; }
+.masterstrip .master-controls label { font-size: 12px; }
+.masterstrip .pill { font-size: 11.5px; padding: 4px 8px; }
+.chpanel { margin: 0; }
+@media (max-width: 900px) {
+  .desk { flex-direction: column; }
+  .masterstrip.master { position: static; width: auto; flex: none; max-height: none; }
+  .masterstrip .master-meters { height: 120px; }
+}
+
+/* ---- compact Channel settings so the strips have room ---- */
+.masterstrip > * { align-self: stretch; }
+.chpanel { gap: 8px; padding: 10px 12px; }
+.cp-graph { height: 160px; }
+.cp-grid { gap: 10px; }
+.cp-sec { padding: 8px 10px; gap: 5px; }
+.cp-sec h4 { margin: 0; }
+.cp-sec .mini { display: grid; grid-template-columns: 54px 1fr 66px; align-items: center; gap: 6px; font-size: 11.5px; }
+.cp-sec .mini input { order: 1; margin: 0; }
+.cp-sec .mini output { order: 2; text-align: right; font-size: 11.5px; margin: 0; white-space: nowrap; }
+.cp-sec .check { font-size: 12px; }
+.cp-tune { gap: 4px; }
+.cp-gthr .muted { display: none; }
+.strip .strip-body { height: 150px; }
+.strip { gap: 5px; }
+.cp-graph { height: 140px; }
+.cp-collapse { margin-left: auto; font-size: 12px; padding: 4px 10px; }
+.chpanel.collapsed > :not(.cp-head) { display: none; }

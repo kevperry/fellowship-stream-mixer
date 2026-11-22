@@ -109,9 +109,17 @@ Offset** under Advanced Audio Properties. The mixer adds about 20–30 ms.
 
 ### 5. Tag your channels
 
-Each channel strip has just the name, meters, **fader**, **pan**, **Mute** and
-**Solo**. Click a channel's name to select it. Everything else for that channel
-opens in **Channel settings** at the top right of the screen: name, source type,
+The screen has three parts. A slim **Master** strip is locked to the right
+edge: stream loudness, L/R meters, status, Target, Reverb return, Stream polish
+and Song key. **Channel settings** runs across the top of everything else, and
+the **channel strips** sit underneath. Strips scroll sideways when they don't
+all fit; the Master strip never moves. **Hide ▴** collapses Channel settings to
+one line, so the strips get the whole height; clicking a channel's name opens it
+again.
+
+Each channel strip has the name, meters, **fader**, **pan**, **Mute**, **Solo**,
+**Link** and a **Gate** slider. Click a channel's name to select it. Everything
+else for that channel opens in **Channel settings**: name, source type,
 Link, the automatic level, EQ, compressor, reverb send, and Tune or Ducks music
 where they apply. Name each channel and choose its type there, then click
 **Save settings**. Some tips:
