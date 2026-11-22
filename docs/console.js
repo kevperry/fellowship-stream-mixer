@@ -82,9 +82,11 @@ const FsmConsole = (() => {
           <b class="sname"></b><span class="stype"></span>
         </button>
         <div class="strip-body">
-          <div class="meters">${g.map((_, j) => `${j ? '<span class="msep"></span>' : ""}
-            <div class="meter"><div class="fill in"></div></div>
-            <div class="meter"><div class="fill out"></div></div>`).join("")}
+          <div class="meters">${stereo
+            // stereo: one meter per side (left, right), showing each side's output
+            ? g.map((_, j) => `<div class="meter" title="${["Left", "Right"][j] || "Side " + (j + 1)}"><div class="fill out"></div></div>`).join("")
+            // mono: input (faint) and output
+            : `<div class="meter" title="Input"><div class="fill in"></div></div><div class="meter" title="Output"><div class="fill out"></div></div>`}
           </div>
           <div class="fader-wrap">
             <input type="range" class="fader" min="-40" max="10" step="0.5" aria-label="Fader">
@@ -149,7 +151,7 @@ const FsmConsole = (() => {
     if (!ch) return;
     s.num.textContent = "IN " + s.g.map((k) => CH(k).input).join("/");
     s.name.textContent = groupName(s.g);
-    s.type.textContent = (typeInfo(ch.type).label || ch.type) + (s.stereo ? " · stereo" : "");
+    s.type.textContent = typeInfo(ch.type).label || ch.type;
     if (document.activeElement !== s.fader) s.fader.value = ch.fader_db;
     s.faderV.textContent = fmt(ch.fader_db);
     if (s.pan && document.activeElement !== s.pan) s.pan.value = ch.pan;
@@ -345,8 +347,8 @@ const FsmConsole = (() => {
         s.g.forEach((k, j) => {
           const c = channels[k];
           if (!c) return;
-          meter(s.mIn[j], c.in_peak);
-          meter(s.mOut[j], c.out_peak);
+          if (s.mIn[j]) meter(s.mIn[j], c.in_peak);
+          if (s.mOut[j]) meter(s.mOut[j], c.out_peak);
         });
         s.led.classList.toggle("on", s.g.some((k) => channels[k] && channels[k].active));
       }

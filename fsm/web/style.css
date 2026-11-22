@@ -235,7 +235,6 @@ button.auto, button.tone { overflow: hidden; white-space: nowrap; }
 }
 
 /* ================= stereo strips + link button ================= */
-.strip.stereo { flex: 0 0 132px; width: 132px; min-width: 132px; max-width: 132px; }
 .strip .meters { align-items: stretch; }
 .strip .msep { width: 3px; }
 .stereo-tag { font-size: 11px; color: var(--muted); text-align: center; padding: 6px 0 5px; letter-spacing: .04em; }
