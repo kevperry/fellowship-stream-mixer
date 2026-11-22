@@ -266,6 +266,7 @@ test("link gangs faders and settings but not pan", () => {
   const eng = new E.Engine({ channels: chans }, FS, BLOCK);
   eng.updateChannel(1, { link: true });
   assert.equal(eng.cfg.channels[1].fader_db, -3);
+  assert.equal(eng.cfg.channels[0].pan, -1); assert.equal(eng.cfg.channels[1].pan, 1);  // one stereo source
   eng.updateChannel(1, { fader_db: -7.5 });
   eng.updateChannel(0, { mute: true, pan: -0.5 });
   const [a, b, c] = eng.cfg.channels;

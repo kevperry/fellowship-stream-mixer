@@ -121,13 +121,15 @@ where they apply. Name each channel and choose its type there, then click
 - Use **Vocal** for every singer, worship leader and backing vocals alike.
   Vocals are *not* ducked, and they don't duck the band, so singing over the
   band works as expected.
-- For a stereo pair, such as keys L/R, playback L/R or overheads, select the
-  right‑hand channel and tick **Link with left**. It then works like a stereo pair on a console: moving
-  either **fader** moves both, and mute, input trim, reverb send, source type and
-  Tune are shared too. **Pan** and the name stay separate, so each side can sit
-  where it belongs. Ticking Link copies the left channel's settings onto the
-  right. The automatic mixing also moves the pair together, so the stereo image
-  stays put. Soloing either side solos both.
+- For a stereo pair, such as keys L/R, playback L/R or overheads, click **Link ◂**
+  at the bottom of the right‑hand channel's strip. The two become **one stereo
+  strip** (for example *IN 3/4 · Keys*) with one fader, one Mute/Solo and one
+  set of Channel settings. The left side is panned hard left and the right side
+  hard right. A pair named *Keys L* / *Keys R* shows as *Keys*; renaming the pair
+  renames both sides. **Unlink** at the bottom of the stereo strip splits it
+  back into two channels. A channel can only join a single channel, not one
+  that's already part of a pair. The automatic mixing treats the pair as one,
+  so the stereo image stays put.
 - Set any channel you don't use to **Off**.
 
 ## During a service
@@ -281,7 +283,7 @@ are read in name order, so `Track 1, Track 2, … Track 10`.
 | `channels[].fader_db`, `mute`, `pan`, `trim_db` | Usual channel controls. `trim_db` adjusts input level before processing. |
 | `channels[].reverb_db` | Reverb send; `null` uses the source type's default. |
 | `channels[].ducks_music` | Override whether this mic ducks the music (`true`/`false`/`null`). |
-| `channels[].link` | Stereo‑link with the channel before it: faders, mute, trim, reverb, type and Tune are shared; pan is not. |
+| `channels[].link` | Join the channel before it as one stereo strip: fader, mute and all settings are shared; linking sets the pans to hard left/right. |
 | `channels[].tune`, `tune_amount`, `tune_speed_ms` | Pitch correction on/off (vocal types only), strength 0–100 %, and speed in ms (10–500). |
 | `channels[].auto_level`, `level_range`, `level_speed` | Ride this channel's level (true/false); how far, in ± dB (`null` = the source type's default); how fast, in dB per second (`null` = 3). |
 | `channels[].eq_preset`, `eq_amount`, `comp` | Adaptive EQ target (`speech`, `vocal`, `keys`, `guitar`, `bass`, `drums`, `instrument`, `off`; `null` = automatic), strength 0–100 %, and compressor (`off`, `light`, `mild`, `medium`, `firm`; `null` = automatic). |

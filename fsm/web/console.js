@@ -5,8 +5,9 @@
  * fsm/web/console.js and docs/console.js must stay identical (a test checks this).
  *
  * Strips hold only what you reach for during a service: name, meters, fader,
- * pan, Mute and Solo. Click a strip's name to open everything else for that
- * channel in the Channel settings panel.
+ * pan, Mute, Solo and Link. Linking a channel to the one on its left turns the
+ * two into one stereo strip (one fader, hard left/right). Click a strip's name
+ * to open everything else for that channel in the Channel settings panel.
  */
 "use strict";
 
@@ -44,61 +45,128 @@ const FsmConsole = (() => {
   }
 
   // ------------------------------------------------------------ strips
+  // One strip per *group*: a single channel, or channels linked into one stereo source
+  // (each linked channel joins the one to its left). Selecting a strip selects the
+  // group's first channel; settings changed there are shared by the whole group.
+
+  function groups() {
+    const out = [];
+    cfg().channels.forEach((ch, i) => {
+      if (i > 0 && ch.link && out.length) out[out.length - 1].push(i);
+      else out.push([i]);
+    });
+    return out;
+  }
+  const groupOf = (i) => groups().find((g) => g.includes(i)) || [i];
+  const signature = () => JSON.stringify(groups());
+
+  /** "Keys L" + "Keys R" -> "Keys"; otherwise "A / B". */
+  function groupName(g) {
+    const names = g.map((k) => CH(k).name);
+    if (g.length === 1) return names[0];
+    const base = names.map((n) => n.replace(/[\s_-]*(l|r|left|right)$/i, "").trim());
+    return base.every((b) => b && b === base[0]) ? base[0] : names.join(" / ");
+  }
+
   function buildStrips() {
     const host = $("#strips");
     host.innerHTML = "";
-    strips = cfg().channels.map((ch, i) => {
+    const gs = groups();
+    strips = gs.map((g, gi) => {
+      const lead = g[0], stereo = g.length > 1;
       const el = document.createElement("div");
-      el.className = "strip card";
+      el.className = "strip card" + (stereo ? " stereo" : "");
       el.innerHTML = `
         <button class="strip-head" title="Show this channel's settings">
           <span class="num"></span><span class="led" title="Active"></span>
           <b class="sname"></b><span class="stype"></span>
         </button>
         <div class="strip-body">
-          <div class="meters">
+          <div class="meters">${g.map((_, j) => `${j ? '<span class="msep"></span>' : ""}
             <div class="meter"><div class="fill in"></div></div>
-            <div class="meter"><div class="fill out"></div></div>
+            <div class="meter"><div class="fill out"></div></div>`).join("")}
           </div>
           <div class="fader-wrap">
             <input type="range" class="fader" min="-40" max="10" step="0.5" aria-label="Fader">
             <output class="fader-v"></output>
           </div>
         </div>
-        <label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.05"></label>
-        <div class="row btns"><button class="mute">Mute</button><button class="solo">Solo</button></div>`;
+        ${stereo ? `<div class="stereo-tag" title="Left side hard left, right side hard right">◂ stereo ▸</div>`
+                 : `<label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.05"></label>`}
+        <div class="row btns"><button class="mute">Mute</button><button class="solo">Solo</button></div>
+        <button class="linkbtn"></button>`;
       const s = {
-        el, head: $(".strip-head", el), num: $(".num", el), led: $(".led", el), name: $(".sname", el), type: $(".stype", el),
-        fader: $(".fader", el), faderV: $(".fader-v", el), pan: $(".pan", el), mute: $(".mute", el), solo: $(".solo", el),
-        mIn: $(".fill.in", el), mOut: $(".fill.out", el),
+        el, g, lead, stereo, head: $(".strip-head", el), num: $(".num", el), led: $(".led", el), name: $(".sname", el),
+        type: $(".stype", el), fader: $(".fader", el), faderV: $(".fader-v", el), pan: $(".pan", el),
+        mute: $(".mute", el), solo: $(".solo", el), link: $(".linkbtn", el),
+        mIn: [...el.querySelectorAll(".fill.in")], mOut: [...el.querySelectorAll(".fill.out")],
       };
-      s.head.addEventListener("click", () => select(i));
-      s.fader.addEventListener("input", () => { s.faderV.textContent = fmt(s.fader.value); o.setChannel(i, { fader_db: Number(s.fader.value) }); });
-      s.fader.addEventListener("dblclick", () => o.setChannel(i, { fader_db: 0 }));
-      s.pan.addEventListener("input", () => o.setChannel(i, { pan: Number(s.pan.value) }));
-      s.pan.addEventListener("dblclick", () => o.setChannel(i, { pan: 0 }));
-      s.mute.addEventListener("click", () => o.setChannel(i, { mute: !CH(i).mute }));
-      s.solo.addEventListener("click", () => o.setChannel(i, { solo: !CH(i).solo }));
+      s.head.addEventListener("click", () => select(lead));
+      s.fader.addEventListener("input", () => { s.faderV.textContent = fmt(s.fader.value); o.setChannel(lead, { fader_db: Number(s.fader.value) }); });
+      s.fader.addEventListener("dblclick", () => o.setChannel(lead, { fader_db: 0 }));
+      if (s.pan) {
+        s.pan.addEventListener("input", () => o.setChannel(lead, { pan: Number(s.pan.value) }));
+        s.pan.addEventListener("dblclick", () => o.setChannel(lead, { pan: 0 }));
+      }
+      s.mute.addEventListener("click", () => o.setChannel(lead, { mute: !CH(lead).mute }));
+      s.solo.addEventListener("click", () => o.setChannel(lead, { solo: !CH(lead).solo }));
+      // Link joins this channel to the strip on its left; a stereo strip offers Unlink instead.
+      const leftGroup = gi > 0 ? gs[gi - 1] : null;
+      if (stereo) {
+        s.link.textContent = "Unlink";
+        s.link.title = "Split back into separate channels";
+        s.link.addEventListener("click", () => {
+          for (const k of g.slice(1).reverse()) o.setChannel(k, { link: false });
+          refresh();
+        });
+      } else if (!leftGroup) {
+        s.link.textContent = "Link";
+        s.link.disabled = true;
+        s.link.style.visibility = "hidden";
+      } else {
+        const leftIn = leftGroup.map((k) => CH(k).input).join("/");
+        s.link.textContent = `Link ◂ IN ${leftIn}`;
+        if (leftGroup.length > 1) {
+          s.link.disabled = true;
+          s.link.title = `IN ${leftIn} is already part of a stereo pair`;
+        } else {
+          s.link.title = `Combine with IN ${leftIn} into one stereo channel`;
+          s.link.addEventListener("click", () => {
+            o.setChannel(lead, { link: true });
+            selected = leftGroup[0];
+            refresh();
+          });
+        }
+      }
       host.appendChild(el);
       return s;
     });
+    builtSig = signature();
   }
 
-  function renderStrip(i) {
-    const ch = CH(i), s = strips[i];
-    if (!ch || !s) return;
-    s.num.textContent = `IN ${ch.input}`;
-    s.name.textContent = ch.name;
-    s.type.textContent = typeInfo(ch.type).label || ch.type;
+  function renderStrip(s) {
+    const ch = CH(s.lead);
+    if (!ch) return;
+    s.num.textContent = "IN " + s.g.map((k) => CH(k).input).join("/");
+    s.name.textContent = groupName(s.g);
+    s.type.textContent = (typeInfo(ch.type).label || ch.type) + (s.stereo ? " · stereo" : "");
     if (document.activeElement !== s.fader) s.fader.value = ch.fader_db;
     s.faderV.textContent = fmt(ch.fader_db);
-    if (document.activeElement !== s.pan) s.pan.value = ch.pan;
+    if (s.pan && document.activeElement !== s.pan) s.pan.value = ch.pan;
     s.mute.classList.toggle("active", !!ch.mute);
     s.solo.classList.toggle("active", !!ch.solo);
     s.el.classList.toggle("soloed", !!ch.solo);
     s.el.classList.toggle("off", ch.type === "off");
-    s.el.classList.toggle("selected", i === selected);
-    s.el.classList.toggle("linked", !!ch.link);
+    s.el.classList.toggle("selected", s.g.includes(selected));
+  }
+
+  let builtSig = "";
+  /** Rebuild the strips if channels were linked/unlinked, then redraw. */
+  function refresh() {
+    if (signature() !== builtSig) buildStrips();
+    selected = groupOf(selected)[0];
+    strips.forEach(renderStrip);
+    renderPanel();
   }
 
   // ------------------------------------------------------------ settings panel
@@ -110,7 +178,6 @@ const FsmConsole = (() => {
         <span class="cp-num"></span>
         <input class="cp-name" maxlength="32" aria-label="Channel name">
         <select class="cp-type" aria-label="Source type"></select>
-        <label class="check cp-link" title="Stereo-link with the channel to the left: faders, mute and all settings move together (pan stays separate)"><input type="checkbox"> Link with left</label>
       </div>
       <div class="cp-grid">
         <section class="cp-sec">
@@ -145,7 +212,7 @@ const FsmConsole = (() => {
       </div>`;
     const q = (c) => $(c, host);
     P = {
-      num: q(".cp-num"), name: q(".cp-name"), type: q(".cp-type"), link: q(".cp-link input"), linkRow: q(".cp-link"),
+      num: q(".cp-num"), name: q(".cp-name"), type: q(".cp-type"),
       target: q(".cp-target"), now: q(".cp-now"), al: q(".cp-al"), range: q(".cp-range"), rangeV: q(".cp-range-v"),
       speed: q(".cp-speed"), speedV: q(".cp-speed-v"), dmRow: q(".cp-dm"), dm: q(".cp-dm-on"), reset: q(".cp-reset"),
       eq: q(".cp-eq"), eqa: q(".cp-eqa"), eqaV: q(".cp-eqa-v"), bands: [...host.querySelectorAll(".cp-band")],
@@ -157,9 +224,15 @@ const FsmConsole = (() => {
     for (const e of o.eqPresets) P.eq.add(new Option(e.label, e.id));
     for (const c of o.compLevels) P.comp.add(new Option(c.label, c.id));
     const set = (changes) => o.setChannel(selected, changes);
-    P.name.addEventListener("change", () => set({ name: P.name.value }));
+    P.name.addEventListener("change", () => {
+      const g = groupOf(selected), v = P.name.value.trim();
+      // a channel's default EQ preset comes from its name: keep the current one so renaming never changes the sound
+      const ch = CH(g[0]), live = lastMeters && lastMeters[g[0]];
+      if (ch.eq_preset == null && live && live.eq_preset) o.setChannel(g[0], { eq_preset: live.eq_preset });
+      if (g.length === 2) { o.setChannel(g[0], { name: `${v} L` }); o.setChannel(g[1], { name: `${v} R` }); }
+      else set({ name: v });
+    });
     P.type.addEventListener("change", () => set({ type: P.type.value, reverb_db: null, eq_preset: null, comp: null }));
-    P.link.addEventListener("change", () => set({ link: P.link.checked }));
     P.al.addEventListener("change", () => set({ auto_level: P.al.checked }));
     P.range.addEventListener("input", () => set({ level_range: Number(P.range.value) }));
     P.speed.addEventListener("input", () => set({ level_speed: Number(P.speed.value) }));
@@ -180,11 +253,10 @@ const FsmConsole = (() => {
     const ch = CH(selected);
     if (!ch || !P) return;
     const t = typeInfo(ch.type), off = ch.type === "off";
-    P.num.textContent = `IN ${ch.input}`;
-    if (notFocused(P.name)) P.name.value = ch.name;
+    const g = groupOf(selected);
+    P.num.textContent = "IN " + g.map((k) => CH(k).input).join("/") + (g.length > 1 ? " · stereo" : "");
+    if (notFocused(P.name)) P.name.value = groupName(g);
     P.type.value = ch.type;
-    P.linkRow.hidden = selected === 0;
-    P.link.checked = !!ch.link;
 
     const lvlOn = ch.auto_level !== false;
     const range = ch.level_range ?? t.leveler_range ?? 0, speed = ch.level_speed ?? 3;
@@ -248,8 +320,8 @@ const FsmConsole = (() => {
   }
 
   function select(i) {
-    selected = Math.max(0, Math.min(cfg().channels.length - 1, i));
-    strips.forEach((_, k) => renderStrip(k));
+    selected = groupOf(Math.max(0, Math.min(cfg().channels.length - 1, i)))[0];
+    strips.forEach(renderStrip);
     renderPanel();
   }
 
@@ -261,22 +333,23 @@ const FsmConsole = (() => {
       selected = Math.min(selected, Math.max(0, cfg().channels.length - 1));
       buildStrips();
       buildPanel();
-      strips.forEach((_, i) => renderStrip(i));
-      renderPanel();
+      refresh();
     },
-    /** Re-draw after settings changed for channel i. */
-    render(i) { renderStrip(i); if (i === selected) renderPanel(); },
-    renderAll() { strips.forEach((_, i) => renderStrip(i)); renderPanel(); },
+    /** Re-draw after settings changed for channel i (rebuilds strips if links changed). */
+    render() { refresh(); },
+    renderAll() { refresh(); },
     /** Meter values from the engine: one entry per channel. */
     meters(channels) {
       lastMeters = channels;
-      channels.forEach((c, i) => {
-        const s = strips[i];
-        if (!s) return;
-        meter(s.mIn, c.in_peak);
-        meter(s.mOut, c.out_peak);
-        s.led.classList.toggle("on", c.active);
-      });
+      for (const s of strips) {
+        s.g.forEach((k, j) => {
+          const c = channels[k];
+          if (!c) return;
+          meter(s.mIn[j], c.in_peak);
+          meter(s.mOut[j], c.out_peak);
+        });
+        s.led.classList.toggle("on", s.g.some((k) => channels[k] && channels[k].active));
+      }
       renderPanelMeters(channels[selected]);
     },
     select,

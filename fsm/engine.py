@@ -78,6 +78,11 @@ def gang(channels: list, index: int, changes: dict) -> list[int]:
             if k != group[0]:
                 channels[k] = {**channels[k], **{g: src[g] for g in GANGED if g in src}}
                 updated.add(k)
+        # a linked group becomes one stereo source: left side hard left, right side hard right
+        n = len(group)
+        for j, k in enumerate(group):
+            channels[k] = {**channels[k], "pan": -1.0 + 2.0 * j / (n - 1)}
+            updated.add(k)
     else:
         shared = {k: v for k, v in changes.items() if k in GANGED}
         if shared:

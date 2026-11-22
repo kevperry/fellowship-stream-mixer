@@ -1001,6 +1001,8 @@ function fsmGang(channels, index, changes) {
       channels[k] = Object.assign({}, channels[k], copy);
       updated.add(k);
     }
+    // a linked group becomes one stereo source: left side hard left, right side hard right
+    group.forEach((k, j) => { channels[k] = Object.assign({}, channels[k], { pan: -1 + 2 * j / (group.length - 1) }); updated.add(k); });
   } else {
     const shared = {};
     for (const [k, v] of Object.entries(changes)) if (FSM_GANGED.includes(k)) shared[k] = v;

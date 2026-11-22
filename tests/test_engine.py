@@ -310,7 +310,8 @@ def test_link_gangs_faders_and_settings_but_not_pan():
              cfgmod.channel(input=3, name="Bass", type="instrument")]
     eng = Engine(cfgmod.normalize({"channels": chans}), FS, BLOCK)
     changed = eng.update_channel(1, {"link": True})            # R takes L's settings
-    assert set(changed) == {1} and changed[1]["fader_db"] == -3 and changed[1]["pan"] == 1
+    assert set(changed) == {0, 1} and changed[1]["fader_db"] == -3
+    assert changed[0]["pan"] == -1 and changed[1]["pan"] == 1  # becomes one stereo source
     changed = eng.update_channel(1, {"fader_db": -7.5})        # move either fader: both move
     assert set(changed) == {0, 1}
     changed = eng.update_channel(0, {"mute": True, "reverb_db": -20, "pan": -0.5, "name": "Keys left"})

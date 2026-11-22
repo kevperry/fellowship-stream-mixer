@@ -265,3 +265,12 @@ button.auto, button.tone { overflow: hidden; white-space: nowrap; }
   .cp-grid { grid-template-columns: 1fr; }
   .top .master { grid-template-columns: 1fr 52px; grid-template-areas: "loud meters" "read read" "ctl ctl"; }
 }
+
+/* ================= stereo strips + link button ================= */
+.strip.stereo { flex: 0 0 132px; width: 132px; min-width: 132px; max-width: 132px; }
+.strip .meters { align-items: stretch; }
+.strip .msep { width: 3px; }
+.stereo-tag { font-size: 11px; color: var(--muted); text-align: center; padding: 6px 0 5px; letter-spacing: .04em; }
+.linkbtn { width: 100%; font-size: 11.5px; padding: 4px 4px; white-space: nowrap; }
+.strip.stereo .linkbtn { color: var(--fader); border-color: color-mix(in srgb, var(--fader) 45%, var(--line)); }
+.linkbtn:disabled { opacity: .45; }
