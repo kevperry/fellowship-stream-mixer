@@ -143,12 +143,11 @@ where they apply. Name each channel and choose its type there, then click
   section shows "Reverb resting — no music". If the band's mics pick up the PA
   strongly, the mixer may think music is still playing; lowering or muting those
   channels between songs helps.
-- **Auto level** (in Channel settings) says in plain words what the mixer is
-  aiming for on that type of channel: about −20 dBFS average for speech and
-  vocals, −24 for instruments, −26 for drums and −22 for playback. It also shows
-  how far it may move the channel and what it's doing right now (the level it
-  hears and its adjustment, split into leveler, compressor and gate). Your fader
-  sits on top of all of that. Its controls:
+- **Auto level** (in Channel settings) shows one line, for example *Target
+  −20 dBFS · ±9 dB · now +1.5*: the level it aims for on that type of channel
+  (about −20 dBFS average for speech and vocals, −24 for instruments, −26 for
+  drums, −22 for playback), how far it may move the channel, and what it's doing
+  right now. Hover the line for more. Your fader sits on top. Its controls:
   - **Auto level**: untick it to stop the mixer riding this channel, for example
     a playback track that's already mixed. Gating, compression and your fader
     still apply.
@@ -159,13 +158,29 @@ where they apply. Name each channel and choose its type there, then click
     smoother; faster catches sudden changes, such as a quiet prayer followed by
     a loud announcement.
 
-  **Reset auto level** puts all three back. Linked stereo pairs share these
+  **Reset** puts all three back. Linked stereo pairs share these
   settings.
-- **EQ and Compressor** (in Channel settings): the seven EQ bars show what the
-  adaptive EQ is doing right now (green = lifted, gold = cut), with the value
-  for each band. You can change the **EQ** preset, **Amount** (0% = flat,
-  default 50%) and **Compressor**, and see the compressor's gain reduction.
-  **Reverb send** is there too. The EQ preset starts from the source type and the channel's
+- **Parametric EQ** (in Channel settings): a high‑pass filter plus four bands,
+  drawn as a curve from 20 Hz to 20 kHz. Drag a numbered point to change its
+  frequency and gain, use the mouse wheel on it to make it narrower or wider (Q),
+  and double‑click it to flatten that band. Drag the dashed **HPF** line to move
+  the high‑pass filter, or untick **HPF** to switch it off.
+  - **Source curve** picks a suggested starting curve for the kind of source:
+    Spoken voice, Vocal, Keys/piano, Guitar, Bass, Drum kit/overheads or
+    Instrument. Once you drag anything, the curve shows as *edited*; **Reset to
+    suggested** puts it back.
+  - **Auto EQ** is the adaptive EQ's amount (0–100 %, default 50 %). It measures
+    the source *before* your curve, so it never undoes your moves. Its small
+    automatic corrections appear as the faint dashed line.
+- **Compressor** (in Channel settings) shows its gain reduction. **Reverb
+  send** is there too.
+- **Gate:** the small **Gate** slider at the bottom of each strip sets a
+  threshold. Below it, a **soft gate** eases the channel down: gently just
+  under the threshold, down to the full depth further below. Far left (or
+  double‑click) is **auto**, which follows the mic's background noise. A line
+  on the strip's meter marks the threshold: dashed for auto, solid blue when
+  you've set it, gold while the gate is closing. **Depth**, **Hold** and
+  **Release** are in Channel settings; **Auto gate** resets them. The EQ preset starts from the source type and the channel's
   name. A channel named *Bass* gets the Bass preset, *Acoustic Gtr* gets Guitar,
   and *Keys* gets Keys/piano. Single drum mics (*Kick*, *Snare*, *Tom*, *Hat*)
   start with EQ Off, because the kit target is for overheads or a stereo kit. Linked pairs share these settings.
@@ -287,6 +302,8 @@ are read in name order, so `Track 1, Track 2, … Track 10`.
 | `channels[].tune`, `tune_amount`, `tune_speed_ms` | Pitch correction on/off (vocal types only), strength 0–100 %, and speed in ms (10–500). |
 | `channels[].auto_level`, `level_range`, `level_speed` | Ride this channel's level (true/false); how far, in ± dB (`null` = the source type's default); how fast, in dB per second (`null` = 3). |
 | `channels[].eq_preset`, `eq_amount`, `comp` | Adaptive EQ target (`speech`, `vocal`, `keys`, `guitar`, `bass`, `drums`, `instrument`, `off`; `null` = automatic), strength 0–100 %, and compressor (`off`, `light`, `mild`, `medium`, `firm`; `null` = automatic). |
+| `channels[].peq` | Your EQ curve: `{"hpf": Hz or null, "bands": [[Hz, dB, Q] × 4]}`; `null` = the suggested curve for the EQ preset. |
+| `channels[].gate_threshold`, `gate_depth`, `gate_hold_ms`, `gate_release_ms` | Gate threshold in dBFS (`null` = automatic), depth in dB, hold and release in ms (`null` = the source type's default). |
 | `master.tune_key` | `"chromatic"` or a key such as `"G major"`, `"E minor"`, `"Bb major"`. |
 
 The per‑type sound (EQ, compression, targets) lives in `fsm/presets.py` if you

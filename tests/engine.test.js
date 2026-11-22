@@ -372,3 +372,31 @@ test("stream polish eases swells gently and can be switched off", () => {
   assert.equal(eng.polishMix, 0);
   assert.equal(eng.readMeters().master.polish, false);
 });
+
+test("parametric EQ bands and the manual soft gate", () => {
+  const tone = (f, secs, lvl = 0.1) => Float64Array.from({ length: Math.floor(secs * FS) }, (_, i) => lvl * Math.sin(2 * Math.PI * f * i / FS));
+  const rms = (x) => 10 * Math.log10(x.reduce((a, v) => a + v * v, 0) / x.length);
+  const through = (peq, f) => {
+    const eng = engine(["instrument"]);
+    eng.updateChannel(0, { auto_level: false, comp: "off", eq_amount: 0, peq });
+    const x = tone(f, 1.5), out = [];
+    for (let i = 0; i + BLOCK <= x.length; i += BLOCK) out.push(...eng.process([x.subarray(i, i + BLOCK)])[0]);
+    return rms(out.slice(FS));
+  };
+  const flat = { hpf: null, bands: [[100, 0, 1], [400, 0, 1], [1000, 0, 1], [8000, 0, 1]] };
+  const boost = { hpf: null, bands: [[100, 0, 1], [400, 0, 1], [1000, 6, 1], [8000, 0, 1]] };
+  assert.ok(Math.abs(through(boost, 1000) - through(flat, 1000) - 6) < 0.3);
+  assert.ok(through({ hpf: 200, bands: flat.bands }, 60) < through(flat, 60) - 15);
+
+  const v = engine(["lead_vocal"]);
+  assert.deepEqual(v.strips[0].curve.bands, E.FSM_TONE.curves.vocal.bands);
+  assert.throws(() => v.updateChannel(0, { peq: { hpf: 80, bands: [[100, 0, 1]] } }));
+
+  const g = engine(["instrument"]);
+  g.updateChannel(0, { gate_threshold: -40, auto_level: false, comp: "off" });
+  run(g, [tone(440, 1)]); assert.ok(g.strips[0].gateOpen);
+  run(g, [tone(440, 1.5, 0.1 * E.db2lin(-20.5))]);
+  assert.ok(!g.strips[0].gateOpen && g.strips[0].gateDb < -2 && g.strips[0].gateDb > -5, `soft ${g.strips[0].gateDb}`);
+  run(g, [tone(440, 1.5, 0.1 * E.db2lin(-40))]);
+  assert.ok(Math.abs(g.strips[0].gateDb + 12) < 1e-6);
+});

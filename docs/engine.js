@@ -25,7 +25,7 @@ const FSM_PRESETS = {
 };
 // END PRESETS
 // BEGIN TONE (generated from fsm/tone.py by `python -m fsm.jsdata`)
-const FSM_TONE = {"bands": [125, 250, 500, 1000, 2000, 4000, 8000], "eq_presets": {"speech": {"label": "Spoken voice", "tolerance": 2.0, "target": {"250": 1, "500": 0, "1000": -5, "2000": -7, "4000": -10, "8000": -14}}, "vocal": {"label": "Vocal", "tolerance": 2.0, "target": {"250": -2, "500": 0, "1000": -6, "2000": -8, "4000": -13, "8000": -12}}, "keys": {"label": "Keys / piano", "tolerance": 4.0, "target": {"125": -10, "250": -2, "500": 0, "1000": -6, "2000": -10}}, "guitar": {"label": "Guitar", "tolerance": 4.0, "target": {"125": -2, "250": 3, "500": 0, "1000": -2, "2000": -2, "4000": -7}}, "bass": {"label": "Bass", "tolerance": 4.0, "target": {"125": 33, "250": 26, "500": 0}}, "drums": {"label": "Drum kit / overheads", "tolerance": 4.0, "target": {"250": 5, "500": 0, "1000": -6, "2000": -7, "4000": -6, "8000": -8}}, "instrument": {"label": "Instrument (general)", "tolerance": 4.0, "target": {"125": 2, "250": 2, "500": 0, "1000": -2, "2000": -4, "4000": -6, "8000": -8}}, "off": {"label": "Off (flat)", "tolerance": 2.0, "target": {}}}, "max_cut": 6.0, "tolerance": 2.0, "max_boost": {"125": 0.0, "250": 0.0, "500": 1.5, "1000": 3.0, "2000": 3.0, "4000": 3.0, "8000": 3.0}, "comp_levels": {"off": {"label": "Off", "ratio": 1.0, "above": 0.0}, "light": {"label": "Light", "ratio": 1.5, "above": 6.0}, "mild": {"label": "Mild", "ratio": 2.0, "above": 4.0}, "medium": {"label": "Medium", "ratio": 3.0, "above": 3.0}, "firm": {"label": "Firm", "ratio": 4.0, "above": 2.0}}};
+const FSM_TONE = {"bands": [125, 250, 500, 1000, 2000, 4000, 8000], "eq_presets": {"speech": {"label": "Spoken voice", "tolerance": 2.0, "target": {"250": 1, "500": 0, "1000": -5, "2000": -7, "4000": -10, "8000": -14}}, "vocal": {"label": "Vocal", "tolerance": 2.0, "target": {"250": -2, "500": 0, "1000": -6, "2000": -8, "4000": -13, "8000": -12}}, "keys": {"label": "Keys / piano", "tolerance": 4.0, "target": {"125": -10, "250": -2, "500": 0, "1000": -6, "2000": -10}}, "guitar": {"label": "Guitar", "tolerance": 4.0, "target": {"125": -2, "250": 3, "500": 0, "1000": -2, "2000": -2, "4000": -7}}, "bass": {"label": "Bass", "tolerance": 4.0, "target": {"125": 33, "250": 26, "500": 0}}, "drums": {"label": "Drum kit / overheads", "tolerance": 4.0, "target": {"250": 5, "500": 0, "1000": -6, "2000": -7, "4000": -6, "8000": -8}}, "instrument": {"label": "Instrument (general)", "tolerance": 4.0, "target": {"125": 2, "250": 2, "500": 0, "1000": -2, "2000": -4, "4000": -6, "8000": -8}}, "off": {"label": "Off (flat)", "tolerance": 2.0, "target": {}}}, "max_cut": 6.0, "tolerance": 2.0, "max_boost": {"125": 0.0, "250": 0.0, "500": 1.5, "1000": 3.0, "2000": 3.0, "4000": 3.0, "8000": 3.0}, "comp_levels": {"off": {"label": "Off", "ratio": 1.0, "above": 0.0}, "light": {"label": "Light", "ratio": 1.5, "above": 6.0}, "mild": {"label": "Mild", "ratio": 2.0, "above": 4.0}, "medium": {"label": "Medium", "ratio": 3.0, "above": 3.0}, "firm": {"label": "Firm", "ratio": 4.0, "above": 2.0}}, "curves": {"speech": {"hpf": 90, "hpf_order": 4, "bands": [[180, -1.5, 1.0], [400, -1.5, 1.4], [3000, 2.5, 1.0], [9000, 1.5, 0.7]]}, "vocal": {"hpf": 100, "hpf_order": 4, "bands": [[160, 1.5, 1.4], [300, -2.5, 2.0], [2800, 3.0, 1.4], [10000, 2.5, 1.2]]}, "keys": {"hpf": 40, "hpf_order": 2, "bands": [[120, -1.0, 1.0], [350, -2.0, 1.0], [2500, 1.0, 1.0], [8000, 1.0, 0.8]]}, "guitar": {"hpf": 80, "hpf_order": 2, "bands": [[200, -2.0, 1.0], [800, -1.0, 1.4], [3000, 2.0, 1.0], [8000, 1.0, 0.8]]}, "bass": {"hpf": 35, "hpf_order": 2, "bands": [[80, 2.0, 1.0], [250, -3.0, 1.2], [800, 1.0, 1.4], [2500, 1.0, 1.0]]}, "drums": {"hpf": 50, "hpf_order": 2, "bands": [[100, 1.0, 1.0], [400, -3.0, 1.0], [4000, 1.0, 1.0], [10000, 2.0, 0.8]]}, "instrument": {"hpf": 40, "hpf_order": 2, "bands": [[120, 0.0, 1.0], [250, -1.5, 1.0], [3000, 1.0, 1.0], [8000, 0.0, 0.8]]}, "off": {"hpf": null, "hpf_order": 2, "bands": [[100, 0.0, 1.0], [400, 0.0, 1.0], [2000, 0.0, 1.0], [8000, 0.0, 1.0]]}}, "peq_limits": {"hpf": [20.0, 400.0], "freq": [20.0, 20000.0], "gain": [-15.0, 15.0], "q": [0.3, 8.0]}};
 // END TONE
 const FSM_TYPE_ORDER = ["speech", "lead_vocal", "instrument", "drums", "playback", "off"];
 const FSM_MUSIC_TYPES = ["instrument", "drums", "playback"];
@@ -45,6 +45,7 @@ const FSM_CHANNEL_DEFAULTS = {
   solo: false, tune: false, tune_amount: 50, tune_speed_ms: 150,
   auto_level: true, level_range: null, level_speed: null,
   eq_preset: null, eq_amount: 50, comp: null,
+  peq: null, gate_threshold: null, gate_depth: null, gate_hold_ms: null, gate_release_ms: null,
 };
 
 // ---------------------------------------------------------------- filters
@@ -86,6 +87,11 @@ class FilterChain {
   constructor(sections) {
     this.s = sections;
     this.z = sections.map(() => new Float64Array(2));
+  }
+  /** Change the filters; keeps the running state when the section count matches (no clicks). */
+  setSections(sections) {
+    if (sections.length !== this.s.length) this.z = sections.map(() => new Float64Array(2));
+    this.s = sections;
   }
   /** Filters ``x`` in place. */
   process(x) {
@@ -528,6 +534,13 @@ function fsmDefaultEqPreset(type, name) {
   }
   return "off";
 }
+/** The curve a channel uses: its own (peq) or the suggested one for its preset. */
+function fsmResolveCurve(peq, preset, typeHpf, typeOrder) {
+  const base = FSM_TONE.curves[preset] || FSM_TONE.curves.off;
+  const order = preset !== "off" ? base.hpf_order : typeOrder;
+  if (peq) return { hpf: peq.hpf ?? null, hpf_order: order, bands: peq.bands.map((b) => b.slice()) };
+  return { hpf: base.hpf ?? typeHpf, hpf_order: order, bands: base.bands.map((b) => b.slice()) };
+}
 function fsmDefaultComp(type) { return type === "playback" ? "light" : type === "off" ? "off" : "mild"; }
 
 class AdaptiveEQ {
@@ -617,7 +630,7 @@ class Strip {
     this.adapt = new AdaptiveEQ(fs, block, stagger);
     this.configure(ch);
     this.nfRing = []; this.nfCur = Infinity; this.nfCount = 0; this.noiseFloor = -70;
-    this.gateOpen = false; this.hold = 0; this.gateDb = this.p.gate_range;
+    this.gateOpen = false; this.hold = 0; this.gateLevel = -60; this.gateDb = this.p.gate_range;
     this.grDb = 0; this.amDb = 0; this.amEnv = -120;
     this.gainPrev = 0; this.bypassGainPrev = 0; this.level = -120;
     this.buf = new Float64Array(block);
@@ -628,8 +641,9 @@ class Strip {
     if (ch.type !== this.type) {
       this.type = ch.type;
       this.p = FSM_PRESETS[ch.type];
-      const sections = highpassSections(this.p.hpf, this.fs, this.p.hpf_order);
-      this.chain = new FilterChain(sections);
+      this.chain = new FilterChain([]);   // high-pass filter
+      this.bands = new FilterChain([]);   // your four EQ bands (after the adaptive EQ)
+      this.curveKey = null;
       this.avgDb = this.p.target_db; this.levDb = 0;
     }
     this.col = (ch.input | 0) - 1;
@@ -653,6 +667,18 @@ class Strip {
     this.eqPreset = ch.eq_preset === null || ch.eq_preset === undefined ? fsmDefaultEqPreset(this.type, ch.name) : ch.eq_preset;
     this.eqAmount = Number(ch.eq_amount ?? 50) / 100;
     this.comp = ch.comp === null || ch.comp === undefined ? fsmDefaultComp(this.type) : ch.comp;
+    this.curve = fsmResolveCurve(ch.peq, this.eqPreset, this.p.hpf, this.p.hpf_order);
+    const key = JSON.stringify(this.curve);
+    if (key !== this.curveKey) {
+      this.chain.setSections(this.curve.hpf ? highpassSections(this.curve.hpf, this.fs, this.curve.hpf_order) : []);
+      this.bands.setSections(this.curve.bands.map(([f, g, q]) => biquad("peak", f, this.fs, g, q)));
+      this.curveKey = key;
+    }
+    const nn = (v) => v === null || v === undefined;
+    this.gateThreshold = nn(ch.gate_threshold) ? null : Number(ch.gate_threshold);
+    this.gateDepth = nn(ch.gate_depth) ? null : Number(ch.gate_depth);
+    this.gateHold = nn(ch.gate_hold_ms) ? this.p.gate_hold : Number(ch.gate_hold_ms) / 1000;
+    this.gateRelease = nn(ch.gate_release_ms) ? 0.25 : Number(ch.gate_release_ms) / 1000;
     if (FSM_VOCAL_TYPES.includes(this.type) && !this.tuner) this.tuner = new PitchCorrector(this.fs, this.block);
   }
   get tuning() { return this.tune && FSM_VOCAL_TYPES.includes(this.type); }
@@ -681,12 +707,20 @@ class Strip {
     const nf = Math.min(this.nfCur, ...this.nfRing);
     this.noiseFloor = clamp(nf, NF_MIN, NF_MAX);
 
-    if (level > this.noiseFloor + OPEN_ABOVE) { this.gateOpen = true; this.hold = p.gate_hold; }
-    else if (level < this.noiseFloor + CLOSE_ABOVE) { this.hold -= dt; if (this.hold <= 0) this.gateOpen = false; }
-    const rng = p.gate_range;
-    const target = this.gateOpen || rng === 0 ? 0 : rng;
+    // gate: automatic (follows the noise floor) or a soft gate below your threshold
+    const thr = this.gateThreshold;
+    const openAt = thr === null ? this.noiseFloor + OPEN_ABOVE : thr;
+    const closeAt = thr === null ? this.noiseFloor + CLOSE_ABOVE : thr - 3;
+    this.gateLevel = openAt;
+    if (level > openAt) { this.gateOpen = true; this.hold = this.gateHold; }
+    else if (level < closeAt) { this.hold -= dt; if (this.hold <= 0) this.gateOpen = false; }
+    const rng = this.gateDepth !== null ? this.gateDepth : thr !== null && p.gate_range === 0 ? -12 : p.gate_range;
+    let target;
+    if (this.gateOpen || rng === 0) target = 0;
+    else if (thr === null) target = rng;
+    else target = Math.max(rng, Math.min(0, level - thr));   // soft: deeper the further below
     if (this.gateDb < target) this.gateDb = Math.min(target, this.gateDb + 400 * dt);
-    else this.gateDb = Math.max(target, this.gateDb - Math.abs(rng) / 0.25 * dt);
+    else this.gateDb = Math.max(target, this.gateDb - Math.max(Math.abs(rng), 1) / this.gateRelease * dt);
 
     // leveler: adjustable range and speed per channel; switched off, it glides back to 0 dB
     const levRange = this.levelRange === null ? p.leveler_range : this.levelRange;
@@ -777,6 +811,7 @@ class Engine {
       if (s.type !== "off") {
         s.buf.set(s.raw); s.chain.process(s.buf);
         s.adapt.process(s.buf, s.gateOpen && s.level > s.noiseFloor + 12, s.eqPreset, s.eqAmount);
+        s.bands.process(s.buf);   // your EQ last, so the adaptive EQ never undoes it
         levels.push(meanSquareDb(s.buf));
       }
       else { s.buf.fill(0); levels.push(-120); }
@@ -951,6 +986,7 @@ class Engine {
         level: r1(s.level), noise_floor: r1(s.noiseFloor), active: s.gateOpen,
         gate_db: r1(s.gateDb), leveler_db: r1(s.levDb), auto_level: s.autoLevel, comp_db: r1(s.grDb),
         eq_gains: Array.from(s.adapt.gains, r1), eq_preset: s.eqPreset, comp: s.comp,
+        gate_level: r1(s.gateLevel), curve: s.curve,
         share_db: r1(s.amDb), duck_db: s.p.duckable ? r1(this.duckDb) : 0, solo: s.solo,
         tune_note: s.tuning && s.tuner && s.tuner.note !== null ? fsmNoteName(s.tuner.note) : null,
         tune_cents: s.tuning && s.tuner ? r1(s.tuner.cents) : 0,
@@ -974,7 +1010,8 @@ class Engine {
 
 /** Settings a stereo-linked pair shares (everything except pan, name, solo). */
 const FSM_GANGED = ["fader_db", "mute", "trim_db", "reverb_db", "type", "tune", "tune_amount",
-  "tune_speed_ms", "ducks_music", "auto_level", "level_range", "level_speed", "eq_preset", "eq_amount", "comp"];
+  "tune_speed_ms", "ducks_music", "auto_level", "level_range", "level_speed", "eq_preset", "eq_amount", "comp",
+  "peq", "gate_threshold", "gate_depth", "gate_hold_ms", "gate_release_ms"];
 
 function fsmLinkGroup(channels, index) {
   let lo = index, hi = index;
@@ -1036,6 +1073,10 @@ function fsmValidateChannel(ch) {
     else if (k === "auto_level") out[k] = !!v;
     else if (k === "eq_preset") { if (v !== null && !(v in FSM_TONE.eq_presets)) throw new Error(`unknown EQ preset ${v}`); out[k] = v; }
     else if (k === "eq_amount") out[k] = fsmNum(v, 0, 100);
+    else if (k === "peq") out[k] = fsmValidatePeq(v);
+    else if (k === "gate_threshold") out[k] = v === null ? null : fsmNum(v, -90, 0);
+    else if (k === "gate_depth") out[k] = v === null ? null : fsmNum(v, -60, 0);
+    else if (k === "gate_hold_ms" || k === "gate_release_ms") out[k] = v === null ? null : fsmNum(v, 10, 3000);
     else if (k === "comp") { if (v !== null && !(v in FSM_TONE.comp_levels)) throw new Error(`unknown compressor setting ${v}`); out[k] = v; }
     else if (k === "level_range") out[k] = v === null ? null : fsmNum(v, 0, 24);
     else if (k === "level_speed") out[k] = v === null ? null : fsmNum(v, 0.5, 12);
@@ -1044,6 +1085,17 @@ function fsmValidateChannel(ch) {
     else throw new Error(`unknown channel setting ${k}`);
   }
   return out;
+}
+
+/** null (follow the suggested curve) or {hpf: Hz|null, bands: [[f, g, q] x 4]}. */
+function fsmValidatePeq(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v !== "object" || !Array.isArray(v.bands) || v.bands.length !== 4) throw new Error("EQ needs a high-pass setting and four bands");
+  const L = FSM_TONE.peq_limits;
+  return {
+    hpf: v.hpf === null || v.hpf === undefined || v.hpf === 0 ? null : fsmNum(v.hpf, L.hpf[0], L.hpf[1]),
+    bands: v.bands.map(([f, g, q]) => [fsmNum(f, L.freq[0], L.freq[1]), fsmNum(g, L.gain[0], L.gain[1]), fsmNum(q, L.q[0], L.q[1])]),
+  };
 }
 
 function fsmValidateMaster(m) {
@@ -1104,6 +1156,6 @@ if (typeof AudioWorkletGlobalScope !== "undefined") {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { AdaptiveEQ, FSM_TONE, fsmDefaultEqPreset, fsmDefaultComp, fsmGang, fsmLinkGroup, FSM_GANGED, PitchCorrector, fsmScaleNotes, fsmNoteName, FSM_KEYS, Engine, Limiter, Reverb, LoudnessMeter, FilterChain, biquad, fft, db2lin, lin2db,
+  module.exports = { fsmResolveCurve, fsmValidatePeq, AdaptiveEQ, FSM_TONE, fsmDefaultEqPreset, fsmDefaultComp, fsmGang, fsmLinkGroup, FSM_GANGED, PitchCorrector, fsmScaleNotes, fsmNoteName, FSM_KEYS, Engine, Limiter, Reverb, LoudnessMeter, FilterChain, biquad, fft, db2lin, lin2db,
     fsmBlockSize, fsmNormalize, fsmGuessType, FSM_PRESETS, FSM_TYPE_ORDER, FSM_CHANNEL_DEFAULTS };
 }

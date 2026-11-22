@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 
 from .presets import PRESETS
-from .tone import BANDS, COMP_LEVELS, EQ_PRESETS, MAX_BOOST, MAX_CUT, TOLERANCE_DB
+from .tone import BANDS, COMP_LEVELS, EQ_CURVES, EQ_PRESETS, MAX_BOOST, MAX_CUT, PEQ_LIMITS, TOLERANCE_DB
 
 ENGINE_JS = Path(__file__).resolve().parents[1] / "docs" / "engine.js"
 
@@ -40,6 +40,9 @@ def _tone() -> dict:
         "tolerance": TOLERANCE_DB,
         "max_boost": {str(b): v for b, v in MAX_BOOST.items()},
         "comp_levels": COMP_LEVELS,
+        "curves": {k: {"hpf": v["hpf"], "hpf_order": v["hpf_order"], "bands": [list(b) for b in v["bands"]]}
+                   for k, v in EQ_CURVES.items()},
+        "peq_limits": {k: list(v) for k, v in PEQ_LIMITS.items()},
     }
 
 

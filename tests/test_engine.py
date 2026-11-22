@@ -547,3 +547,65 @@ def test_recorder_never_blocks_the_audio_thread(tmp_path):
     assert rec.dropped >= 3
     rec._q = queue.Queue()                                        # let the writer finish cleanly
     rec.stop()
+
+
+# ---- parametric EQ and the manual soft gate ------------------------------------------
+
+def tone_at(freq, secs=1.0, level=0.1):
+    return np.sin(2 * np.pi * freq * np.arange(int(secs * FS)) / FS) * level
+
+
+def test_parametric_eq_band_changes_the_sound_as_drawn():
+    def gain_through(peq, freq):
+        eng = make_engine(["instrument"])
+        eng.update_channel(0, {"auto_level": False, "comp": "off", "eq_amount": 0, "peq": peq})
+        x = tone_at(freq, 1.5)[:, None]
+        y = run(eng, x)
+        return power_db(y[FS:, 0]) - power_db(x[FS:, 0] * eng.strips[0].pan_l)
+    flat = {"hpf": None, "bands": [[100, 0, 1], [400, 0, 1], [1000, 0, 1], [8000, 0, 1]]}
+    boost = {"hpf": None, "bands": [[100, 0, 1], [400, 0, 1], [1000, 6, 1], [8000, 0, 1]]}
+    hpf = {"hpf": 200, "bands": flat["bands"]}
+    base = gain_through(flat, 1000)
+    assert abs(gain_through(boost, 1000) - base - 6.0) < 0.3      # +6 dB at 1 kHz, as drawn
+    assert gain_through(hpf, 60) < gain_through(flat, 60) - 15     # the high-pass cuts 60 Hz hard
+
+
+def test_channels_follow_the_suggested_curve_until_edited():
+    from fsm.tone import EQ_CURVES
+    eng = make_engine(["lead_vocal"])
+    s = eng.strips[0]
+    assert s.curve["hpf"] == EQ_CURVES["vocal"]["hpf"] and s.curve["bands"] == list(EQ_CURVES["vocal"]["bands"])
+    mine = {"hpf": 120, "bands": [[150, 2, 1.4], [300, -3, 2], [3000, 4, 1.4], [10000, 2, 1.2]]}
+    eng.update_channel(0, {"peq": mine})
+    run(eng, np.zeros((BLOCK, 1)))
+    assert s.curve["hpf"] == 120 and s.curve["bands"][2] == (3000, 4, 1.4)
+    zi = s.bands.zi.copy()
+    eng.update_channel(0, {"peq": {**mine, "bands": [[150, 2, 1.4], [300, -3, 2], [3200, 4, 1.4], [10000, 2, 1.2]]}})
+    run(eng, np.zeros((BLOCK, 1)))
+    assert s.bands.zi.shape == zi.shape                            # dragging a band keeps the filter running
+    eng.update_channel(0, {"peq": None})                           # "Reset to suggested"
+    run(eng, np.zeros((BLOCK, 1)))
+    assert s.curve["hpf"] == EQ_CURVES["vocal"]["hpf"]
+    with pytest.raises(ValueError):
+        eng.update_channel(0, {"peq": {"hpf": 80, "bands": [[100, 0, 1]]}})
+    m = eng.read_meters()["channels"][0]
+    assert m["curve"]["hpf"] == 100 and len(m["curve"]["bands"]) == 4
+
+
+def test_manual_soft_gate():
+    eng = make_engine(["instrument"])          # normally ungated
+    eng.update_channel(0, {"gate_threshold": -40, "auto_level": False, "comp": "off"})
+    s = eng.strips[0]
+    run(eng, tone_at(440, 1.0, 0.1)[:, None])                     # about -23 dBFS: above the threshold
+    assert s.gate_open and s.gate_db == 0.0
+    run(eng, tone_at(440, 1.5, 0.1 * db2lin(-20.5))[:, None])     # about -43.5 dBFS: just under (past the 3 dB stay-open margin)
+    assert not s.gate_open and -5.0 < s.gate_db < -2.0            # eased down softly, not slammed shut
+    run(eng, tone_at(440, 1.5, 0.1 * db2lin(-40))[:, None])       # far under
+    assert s.gate_db == pytest.approx(-12.0)                      # full depth (default 12 dB here)
+    eng.update_channel(0, {"gate_depth": -30})
+    run(eng, tone_at(440, 1.5, 0.1 * db2lin(-50))[:, None])
+    assert s.gate_db == pytest.approx(-30.0)
+    assert eng.read_meters()["channels"][0]["gate_level"] == -40.0
+    eng.update_channel(0, {"gate_threshold": None})                # back to automatic
+    run(eng, tone_at(440, 0.5, 0.1)[:, None])
+    assert s.gate_threshold is None

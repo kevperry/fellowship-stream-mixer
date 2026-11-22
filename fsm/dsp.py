@@ -94,6 +94,17 @@ class FilterChain:
         y, self.zi = sosfilt(self.sos, x, axis=0, zi=self.zi)
         return y
 
+    def set_sections(self, sections: list[np.ndarray]) -> None:
+        """Change the filters; keeps the running state when the section count is the
+        same, so moving an EQ band while audio plays doesn't click."""
+        new = np.array(sections, dtype=np.float64) if sections else None
+        if new is not None and self.sos is not None and new.shape == self.sos.shape:
+            self.sos = new
+            return
+        self.sos = new
+        if new is not None:
+            self.zi = np.zeros((len(new), 2) if self.channels == 1 else (len(new), 2, self.channels))
+
 
 # --------------------------------------------------------------------------
 # Loudness (ITU-R BS.1770 style K-weighting, block-based)

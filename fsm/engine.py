@@ -34,7 +34,8 @@ from .dsp import (FilterChain, Limiter, LoudnessMeter, Polish, Reverb, biquad, d
                   highpass_sections, lin2db, power_db)
 from .pitch import KEYS, VOCAL_TYPES, PitchCorrector, note_name, scale_notes
 from .presets import MUSIC_TYPES, PRESETS
-from .tone import COMP_LEVELS, EQ_PRESETS, AdaptiveEQ, default_comp, default_eq_preset
+from .tone import (COMP_LEVELS, EQ_PRESETS, PEQ_LIMITS, AdaptiveEQ, band_sections, default_comp,
+                   default_eq_preset, hpf_sections, resolve_curve)
 
 NOISE_FLOOR_MIN = -85.0
 NOISE_FLOOR_MAX = -45.0
@@ -45,7 +46,8 @@ NOISE_WINDOW_S = 20
 # Settings that a stereo-linked pair shares (everything except pan, name, solo).
 GANGED = ("fader_db", "mute", "trim_db", "reverb_db", "type", "tune", "tune_amount",
           "tune_speed_ms", "ducks_music", "auto_level", "level_range", "level_speed",
-          "eq_preset", "eq_amount", "comp")
+          "eq_preset", "eq_amount", "comp", "peq", "gate_threshold", "gate_depth",
+          "gate_hold_ms", "gate_release_ms")
 
 
 def link_group(channels: list, index: int) -> range:
@@ -116,6 +118,7 @@ class Strip:
         self.nf_count = 0
         self.noise_floor = -70.0
         self.gate_open = False
+        self.gate_level = -60.0
         self.hold = 0.0
         self.gate_db = self.p["gate_range"]
         self.gr_db = 0.0
@@ -132,7 +135,9 @@ class Strip:
         if new_type != self.type:
             self.type = new_type
             self.p = PRESETS[new_type]
-            self.chain = FilterChain(highpass_sections(self.p["hpf"], self.fs, self.p["hpf_order"]))
+            self.chain = FilterChain([])        # high-pass filter
+            self.bands = FilterChain([])        # your four EQ bands (after the adaptive EQ)
+            self.curve_key = None
             self.avg_db = self.p["target_db"]
             self.lev_db = 0.0
         self.col = int(ch["input"]) - 1
@@ -161,6 +166,22 @@ class Strip:
         self.eq_amount = float(ch.get("eq_amount", 50.0)) / 100.0
         cp = ch.get("comp")
         self.comp = default_comp(self.type) if cp is None else cp
+        # parametric EQ: the channel's own curve, or the suggested one for its preset
+        self.curve = resolve_curve(ch.get("peq"), self.eq_preset, self.p["hpf"], self.p["hpf_order"])
+        key = repr(self.curve)
+        if key != getattr(self, "curve_key", None):
+            self.chain.set_sections(hpf_sections(self.curve, self.fs))
+            self.bands.set_sections(band_sections(self.curve, self.fs))
+            self.curve_key = key
+        # gate: threshold None = automatic (follows the noise floor)
+        gt = ch.get("gate_threshold")
+        self.gate_threshold = None if gt is None else float(gt)
+        gd = ch.get("gate_depth")
+        self.gate_depth = None if gd is None else float(gd)
+        gh = ch.get("gate_hold_ms")
+        self.gate_hold = self.p["gate_hold"] if gh is None else float(gh) / 1000.0
+        gr = ch.get("gate_release_ms")
+        self.gate_release = 0.25 if gr is None else float(gr) / 1000.0
         if self.type in VOCAL_TYPES and self.tuner is None:
             self.tuner = PitchCorrector(self.fs, self.block)
 
@@ -203,20 +224,38 @@ class Strip:
         nf = min(self.nf_cur, min(self.nf_ring, default=math.inf))
         self.noise_floor = _clip(nf, NOISE_FLOOR_MIN, NOISE_FLOOR_MAX)
 
-        # Gate with hysteresis and hold.
-        if level > self.noise_floor + GATE_OPEN_ABOVE_FLOOR:
+        # Gate with hysteresis and hold. Automatic: threshold follows the noise floor.
+        # Manual: a soft gate below the threshold you set (gentle just under it,
+        # down to the full depth further below).
+        thr = self.gate_threshold
+        if thr is None:
+            open_at, close_at = self.noise_floor + GATE_OPEN_ABOVE_FLOOR, self.noise_floor + GATE_CLOSE_ABOVE_FLOOR
+        else:
+            open_at, close_at = thr, thr - 3.0
+        self.gate_level = open_at
+        if level > open_at:
             self.gate_open = True
-            self.hold = p["gate_hold"]
-        elif level < self.noise_floor + GATE_CLOSE_ABOVE_FLOOR:
+            self.hold = self.gate_hold
+        elif level < close_at:
             self.hold -= dt
             if self.hold <= 0:
                 self.gate_open = False
-        rng = p["gate_range"]
-        target = 0.0 if (self.gate_open or rng == 0) else rng
+        if self.gate_depth is not None:
+            rng = self.gate_depth
+        elif thr is not None and p["gate_range"] == 0:
+            rng = -12.0                      # a manual threshold on a normally ungated source
+        else:
+            rng = p["gate_range"]
+        if self.gate_open or rng == 0:
+            target = 0.0
+        elif thr is None:
+            target = rng
+        else:
+            target = max(rng, min(0.0, (level - thr) * 1.0))   # soft: deeper the further below
         if self.gate_db < target:
             self.gate_db = min(target, self.gate_db + 400.0 * dt)          # opens in ~30 ms
         else:
-            self.gate_db = max(target, self.gate_db - abs(rng) / 0.25 * dt)  # closes in 250 ms
+            self.gate_db = max(target, self.gate_db - max(abs(rng), 1.0) / self.gate_release * dt)
 
         # Leveler: only learns while the source is actually active. Range and speed are
         # adjustable per channel; switched off, it glides back to 0 dB.
@@ -346,7 +385,8 @@ class Engine:
             if s.type != "off":
                 hp = s.chain.process(raw[:, i])
                 active = s.gate_open and s.level > s.noise_floor + 12.0
-                eq[:, i] = s.adapt.process(hp, active, s.eq_preset, s.eq_amount)
+                # adaptive EQ measures the source before your EQ, so it never undoes your moves
+                eq[:, i] = s.bands.process(s.adapt.process(hp, active, s.eq_preset, s.eq_amount))
 
         levels = power_db(eq, axis=0) if C else np.zeros(0)
         # Stereo-linked pairs follow the louder side so the image stays put.
@@ -532,6 +572,9 @@ class Engine:
                     "comp_db": round(s.gr_db, 1),
                     "eq_gains": [round(float(g), 1) for g in s.adapt.gains],
                     "eq_preset": s.eq_preset,
+                    "gate_level": round(s.gate_level, 1),
+                    "curve": {"hpf": s.curve["hpf"], "hpf_order": s.curve["hpf_order"],
+                              "bands": [list(b) for b in s.curve["bands"]]},
                     "comp": s.comp,
                     "share_db": round(s.am_db, 1),
                     "duck_db": round(self.duck_db, 1) if s.p["duckable"] else 0.0,
@@ -610,6 +653,14 @@ def _validate_channel_changes(ch: dict) -> dict:
             out[k] = v
         elif k == "eq_amount":
             out[k] = _num(v, 0, 100)
+        elif k == "peq":
+            out[k] = _validate_peq(v)
+        elif k == "gate_threshold":
+            out[k] = None if v is None else _num(v, -90, 0)
+        elif k == "gate_depth":
+            out[k] = None if v is None else _num(v, -60, 0)
+        elif k in ("gate_hold_ms", "gate_release_ms"):
+            out[k] = None if v is None else _num(v, 10, 3000)
         elif k == "comp":
             if v is not None and v not in COMP_LEVELS:
                 raise ValueError(f"unknown compressor setting {v!r}")
@@ -622,6 +673,21 @@ def _validate_channel_changes(ch: dict) -> dict:
             out[k] = None if v is None else bool(v)
         else:
             raise ValueError(f"unknown channel setting {k!r}")
+    return out
+
+
+def _validate_peq(v):
+    """None (follow the suggested curve) or {"hpf": Hz or None, "bands": [[f, g, q] x 4]}."""
+    if v is None:
+        return None
+    if not isinstance(v, dict) or not isinstance(v.get("bands"), list) or len(v["bands"]) != 4:
+        raise ValueError("EQ needs a high-pass setting and four bands")
+    lo, hi = PEQ_LIMITS["hpf"]
+    hpf = v.get("hpf")
+    out = {"hpf": None if hpf in (None, 0) else _num(hpf, lo, hi), "bands": []}
+    for b in v["bands"]:
+        f, g, q = b
+        out["bands"].append([_num(f, *PEQ_LIMITS["freq"]), _num(g, *PEQ_LIMITS["gain"]), _num(q, *PEQ_LIMITS["q"])])
     return out
 
 

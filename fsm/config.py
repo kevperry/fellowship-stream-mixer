@@ -49,6 +49,11 @@ CHANNEL_DEFAULTS = {
     "eq_preset": None,    # adaptive EQ target; None = from the source type and name
     "eq_amount": 50.0,    # how strongly the adaptive EQ corrects (0-100 %)
     "comp": None,         # "off", "light", "mild", "medium", "firm"; None = mild (light for playback)
+    "peq": None,          # your EQ curve {"hpf": Hz, "bands": [[Hz, dB, Q] x 4]}; None = suggested for the preset
+    "gate_threshold": None,  # dBFS; None = automatic (follows the mic's noise floor)
+    "gate_depth": None,   # dB the gate pulls down; None = the source type's default
+    "gate_hold_ms": None,
+    "gate_release_ms": None,
 }
 
 EXAMPLE_CHANNELS = [

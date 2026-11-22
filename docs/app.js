@@ -11,7 +11,8 @@ const fmtTime = (s) => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s 
   return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s % 60).padStart(2, "0"); };
 
 const types = FSM_TYPE_ORDER.map((id) => ({ id, label: FSM_PRESETS[id].label, reverb_db: FSM_PRESETS[id].reverb_db,
-  leveler_range: FSM_PRESETS[id].leveler_range, target_db: FSM_PRESETS[id].target_db }));
+  leveler_range: FSM_PRESETS[id].leveler_range, target_db: FSM_PRESETS[id].target_db,
+  gate_range: FSM_PRESETS[id].gate_range, gate_hold: FSM_PRESETS[id].gate_hold }));
 const state = {
   readers: [], rate: 0, frames: 0, channels: 0, names: [], remote: false,
   cfg: null, ctx: null, node: null, playing: false,

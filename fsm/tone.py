@@ -154,3 +154,52 @@ class AdaptiveEQ:
         if np.max(np.abs(self.applied)) < 0.01:
             return x                                       # flat: unity filters keep a zero state
         return self.chain.process(x)
+
+
+# --------------------------------------------------------------------------
+# Parametric EQ: suggested starting curves per source
+# --------------------------------------------------------------------------
+# A channel's EQ is a high-pass filter plus four peaking bands. Until you change it,
+# a channel follows the suggested curve for its EQ preset; your own curve is stored
+# in the channel's "peq" setting. (The adaptive EQ then makes its small automatic
+# corrections on top.) Bands are (frequency Hz, gain dB, Q).
+
+EQ_CURVES: dict[str, dict] = {
+    "speech": {"hpf": 90, "hpf_order": 4,
+               "bands": [(180, -1.5, 1.0), (400, -1.5, 1.4), (3000, 2.5, 1.0), (9000, 1.5, 0.7)]},
+    "vocal": {"hpf": 100, "hpf_order": 4,
+              "bands": [(160, 1.5, 1.4), (300, -2.5, 2.0), (2800, 3.0, 1.4), (10000, 2.5, 1.2)]},
+    "keys": {"hpf": 40, "hpf_order": 2,
+             "bands": [(120, -1.0, 1.0), (350, -2.0, 1.0), (2500, 1.0, 1.0), (8000, 1.0, 0.8)]},
+    "guitar": {"hpf": 80, "hpf_order": 2,
+               "bands": [(200, -2.0, 1.0), (800, -1.0, 1.4), (3000, 2.0, 1.0), (8000, 1.0, 0.8)]},
+    "bass": {"hpf": 35, "hpf_order": 2,
+             "bands": [(80, 2.0, 1.0), (250, -3.0, 1.2), (800, 1.0, 1.4), (2500, 1.0, 1.0)]},
+    "drums": {"hpf": 50, "hpf_order": 2,
+              "bands": [(100, 1.0, 1.0), (400, -3.0, 1.0), (4000, 1.0, 1.0), (10000, 2.0, 0.8)]},
+    "instrument": {"hpf": 40, "hpf_order": 2,
+                   "bands": [(120, 0.0, 1.0), (250, -1.5, 1.0), (3000, 1.0, 1.0), (8000, 0.0, 0.8)]},
+    "off": {"hpf": None, "hpf_order": 2,
+            "bands": [(100, 0.0, 1.0), (400, 0.0, 1.0), (2000, 0.0, 1.0), (8000, 0.0, 1.0)]},
+}
+PEQ_LIMITS = {"hpf": (20.0, 400.0), "freq": (20.0, 20000.0), "gain": (-15.0, 15.0), "q": (0.3, 8.0)}
+
+
+def resolve_curve(peq, preset: str, type_hpf: float, type_order: int) -> dict:
+    """The curve a channel actually uses: its own, or the suggested one for its preset."""
+    base = EQ_CURVES.get(preset, EQ_CURVES["off"])
+    order = base["hpf_order"] if preset != "off" else type_order
+    if peq:
+        return {"hpf": peq.get("hpf"), "hpf_order": order, "bands": [tuple(b) for b in peq["bands"]]}
+    return {"hpf": base["hpf"] if base["hpf"] is not None else type_hpf, "hpf_order": order,
+            "bands": list(base["bands"])}
+
+
+def hpf_sections(curve: dict, fs: float) -> list:
+    from .dsp import highpass_sections
+    return highpass_sections(curve["hpf"], fs, curve["hpf_order"]) if curve.get("hpf") else []
+
+
+def band_sections(curve: dict, fs: float) -> list:
+    """The four bands as filters (always four, so dragging one never resets the others)."""
+    return [biquad("peak", f, fs, g, q) for f, g, q in curve["bands"]]

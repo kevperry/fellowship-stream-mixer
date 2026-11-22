@@ -241,3 +241,48 @@ button.auto, button.tone { overflow: hidden; white-space: nowrap; }
 .linkbtn { width: 100%; font-size: 11.5px; padding: 4px 4px; white-space: nowrap; }
 .strip.stereo .linkbtn { color: var(--fader); border-color: color-mix(in srgb, var(--fader) 45%, var(--line)); }
 .linkbtn:disabled { opacity: .45; }
+
+/* ================= parametric EQ graph ================= */
+.cp-eqbox { background: #0b1220; border: 1px solid color-mix(in srgb, var(--fader) 55%, var(--line)); border-radius: 10px;
+  padding: 8px 10px 8px; display: flex; flex-direction: column; gap: 6px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--fader) 15%, transparent), 0 0 24px color-mix(in srgb, var(--fader) 12%, transparent); }
+.cp-eqbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12.5px; }
+.cp-eqbar b { font-size: 13px; }
+.cp-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.cp-inline select { width: auto; font-size: 12px; padding: 3px 5px; }
+.cp-inline input[type=range] { width: 90px; }
+.cp-eqreset { font-size: 11.5px; padding: 3px 8px; }
+.cp-eqreset:disabled { opacity: .4; }
+.cp-graph { width: 100%; height: 210px; display: block; touch-action: none; user-select: none; }
+.cp-graph .g-minor { stroke: #1b2638; stroke-width: 1; }
+.cp-graph .g-major { stroke: #26344b; stroke-width: 1; }
+.cp-graph .g-zero { stroke: #8a96a8; stroke-width: 1.2; }
+.cp-graph .g-lab { fill: #7f8ba0; font-size: 10px; }
+.cp-graph .g-curve { fill: none; stroke: #eaf3ff; stroke-width: 2.2; stroke-linejoin: round; }
+.cp-graph .g-curve-glow { fill: none; stroke: var(--fader); stroke-width: 7; stroke-opacity: .35; filter: blur(3px); }
+.cp-graph .g-auto { fill: none; stroke: var(--fader); stroke-width: 1.3; stroke-dasharray: 4 3; opacity: .7; }
+.cp-graph .g-hpf { stroke: var(--fader); stroke-width: 1.4; stroke-dasharray: 4 4; }
+.cp-graph .g-hpf-lab { fill: #9ec8ff; font-size: 11px; font-weight: 600; }
+.cp-graph .g-hpf-hit { fill: transparent; cursor: ew-resize; }
+.cp-graph .g-node { cursor: grab; }
+.cp-graph .g-node circle { fill: color-mix(in srgb, var(--fader) 35%, #0b1220); stroke: #eaf3ff; stroke-width: 1.5; }
+.cp-graph .g-node:hover circle { fill: var(--fader); }
+.cp-graph .g-node text { fill: #fff; font-size: 10px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.cp-bandlist { font-variant-numeric: tabular-nums; }
+.cp-bandlist span { white-space: nowrap; }
+.cp-target { font-size: 12.5px; }
+.cp-gthr { font-size: 12.5px; }
+.cp-sec button { font-size: 12px; padding: 4px 8px; align-self: flex-start; }
+.cp-sec button:disabled { opacity: .4; }
+.chpanel .cp-grid { grid-template-columns: 1fr 1fr 1fr; }
+
+/* ================= gate slider + threshold mark on the strip ================= */
+.strip .gatebox { font-size: 11px; }
+.strip .gatebox output { float: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.strip.gate-manual .gatebox output { color: var(--fader); }
+.strip .meters { position: relative; }
+.gmark { position: absolute; left: -3px; right: -3px; height: 0; border-top: 2px dashed #9aa6b8; pointer-events: none; z-index: 1; }
+.strip.gate-manual .gmark { border-top-style: solid; border-color: var(--fader); }
+.gmark.closed { border-color: var(--accent) !important; }
+.top { align-items: start; }
+.cp-graph { height: 190px; }
