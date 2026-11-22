@@ -8,6 +8,7 @@
   --text: #e7eaee;
   --muted: #8b95a3;
   --accent: #e0a64a;      /* warm candle gold */
+  --fader: #2b8cff;       /* electric blue: faders and sliders */
   --ok: #4cc38a;
   --warn: #e0c34a;
   --hot: #e5604d;
@@ -52,7 +53,7 @@ main { padding: 16px 20px 40px; }
 .master-meters { display: flex; gap: 8px; height: 110px; }
 .master-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; min-width: 0; }
 .master-controls select, .master-controls input { width: 100%; min-width: 0; }
-input[type=range] { accent-color: var(--accent); }
+input[type=range] { accent-color: var(--fader); }
 .master-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .master-controls output { color: var(--text); margin-left: 4px; }
 select { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; }
@@ -91,13 +92,13 @@ select { background: var(--panel-2); border: 1px solid var(--line); border-radiu
 .strip-body { display: flex; gap: 8px; height: 190px; }
 .meters { display: flex; gap: 3px; }
 .fader-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.fader { writing-mode: vertical-lr; direction: rtl; flex: 1; width: 28px; accent-color: var(--accent); margin: 0; }
+.fader { writing-mode: vertical-lr; direction: rtl; flex: 1; width: 28px; accent-color: var(--fader); margin: 0; }
 .fader-v { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted); }
 .auto { font-size: 11px; color: var(--muted); text-align: center; background: var(--panel-2);
   border-radius: 6px; padding: 3px; font-variant-numeric: tabular-nums; }
 .auto b { color: var(--accent); font-weight: 600; }
 .mini { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); gap: 2px; }
-.mini input { width: 100%; accent-color: var(--accent); margin: 0; }
+.mini input { width: 100%; accent-color: var(--fader); margin: 0; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
 .mute { padding: 4px 8px; font-size: 12px; }
 .mute.active { background: var(--mute); border-color: var(--mute); color: #fff; }
@@ -185,7 +186,7 @@ button.auto i { font-style: normal; font-size: 10px; color: var(--warn); }
 button.tone { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 4px;
   font-size: 11px; color: var(--muted); padding: 4px 6px; border: 1px solid transparent; background: var(--panel-2); }
 button.tone:hover, button.tone.open { border-color: var(--line); }
-.eqbars { display: block; width: 42px; height: 20px; position: relative; }
+.eqbars { display: block; flex: 0 0 34px; width: 34px; height: 20px; position: relative; }
 .eqbars::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--line); }
 .eqbars i { position: absolute; width: 4px; height: 0; bottom: 50%; background: var(--muted); border-radius: 1px;
   transition: height 150ms; }
@@ -194,3 +195,11 @@ button.tone:hover, button.tone.open { border-color: var(--line); }
 .tone .gr { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 10.5px; }
 .tone-panel { display: flex; flex-direction: column; gap: 5px; background: var(--panel-2); border-radius: 6px; padding: 6px; }
 .tone-panel select { width: 100%; font-size: 11.5px; padding: 3px 4px; }
+
+/* ---- keep strips a fixed size while numbers change (no twitching) ---- */
+.strip { flex: 0 0 128px; width: 128px; min-width: 128px; max-width: 128px; overflow: hidden; }
+.strip > * { min-width: 0; max-width: 100%; }
+button.auto, button.tone { overflow: hidden; white-space: nowrap; }
+.tone .gr { display: inline-block; flex: 1; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; }
+.auto b { display: inline-block; min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+.tune-read, .auto, .tone { font-variant-numeric: tabular-nums; }

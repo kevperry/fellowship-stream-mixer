@@ -408,7 +408,7 @@ function renderMeters(m) {
     if (c.eq_gains) c.eq_gains.forEach((g, k) => {
       const b = s.eqBars[k];
       b.style.height = `${Math.min(9, Math.abs(g) * 1.5)}px`;
-      b.style.left = `${k * 6}px`;
+      b.style.left = `${k * 5}px`;
       if (g >= 0) { b.style.bottom = "50%"; b.style.top = "auto"; } else { b.style.top = "50%"; b.style.bottom = "auto"; }
       b.className = g > 0.2 ? "up" : g < -0.2 ? "down" : "";
     });
