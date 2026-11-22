@@ -109,16 +109,20 @@ Offset** under Advanced Audio Properties. The mixer adds about 20–30 ms.
 
 ### 5. Tag your channels
 
-In the control panel, name each channel and choose its type. Click **Save
-settings**. Some tips:
+Each channel strip has just the name, meters, **fader**, **pan**, **Mute** and
+**Solo**. Click a channel's name to select it. Everything else for that channel
+opens in **Channel settings** at the top right of the screen: name, source type,
+Link, the automatic level, EQ, compressor, reverb send, and Tune or Ducks music
+where they apply. Name each channel and choose its type there, then click
+**Save settings**. Some tips:
 
 - Use **Speaker / Pastor** for every spoken‑word mic: pastor's headset, pulpit,
   announcements, prayer mic. These share gain and duck the music.
 - Use **Vocal** for every singer, worship leader and backing vocals alike.
   Vocals are *not* ducked, and they don't duck the band, so singing over the
   band works as expected.
-- For a stereo pair, such as keys L/R, playback L/R or overheads, tick **Link** on
-  the right‑hand channel. It then works like a stereo pair on a console: moving
+- For a stereo pair, such as keys L/R, playback L/R or overheads, select the
+  right‑hand channel and tick **Link with left**. It then works like a stereo pair on a console: moving
   either **fader** moves both, and mute, input trim, reverb send, source type and
   Tune are shared too. **Pan** and the name stay separate, so each side can sit
   where it belongs. Ticking Link copies the left channel's settings onto the
@@ -131,14 +135,18 @@ settings**. Some tips:
 - **Faders** set the balance you want; the mixer keeps things around it. Double‑click
   a fader to reset it to 0.
 - **Music ducking is automatic.** If a speech mic picks up the band and keeps
-  ducking it, such as a pastor's headset during worship, open that channel's
-  **auto** panel and untick **Ducks music**.
+  ducking it, such as a pastor's headset during worship, select that channel and
+  untick **Ducks music** under Auto level.
 - **Reverb** rests automatically while no music is playing, and the master
   section shows "Reverb resting — no music". If the band's mics pick up the PA
   strongly, the mixer may think music is still playing; lowering or muting those
   channels between songs helps.
-- **Fine‑tuning the automatic level:** click a channel's **auto** readout to open
-  its panel:
+- **Auto level** (in Channel settings) says in plain words what the mixer is
+  aiming for on that type of channel: about −20 dBFS average for speech and
+  vocals, −24 for instruments, −26 for drums and −22 for playback. It also shows
+  how far it may move the channel and what it's doing right now (the level it
+  hears and its adjustment, split into leveler, compressor and gate). Your fader
+  sits on top of all of that. Its controls:
   - **Auto level**: untick it to stop the mixer riding this channel, for example
     a playback track that's already mixed. Gating, compression and your fader
     still apply.
@@ -149,12 +157,13 @@ settings**. Some tips:
     smoother; faster catches sudden changes, such as a quiet prayer followed by
     a loud announcement.
 
-  **Reset to default** puts all three back. Linked stereo pairs share these
+  **Reset auto level** puts all three back. Linked stereo pairs share these
   settings.
-- **Tone:** each strip shows a small 7‑band picture of what the adaptive EQ is
-  doing (green = lifted, gold = cut) and the compressor's gain reduction. Click
-  it to change the **EQ** preset, **EQ amount** (0% = flat, default 50%) or
-  **Compressor**. The EQ preset starts from the source type and the channel's
+- **EQ and Compressor** (in Channel settings): the seven EQ bars show what the
+  adaptive EQ is doing right now (green = lifted, gold = cut), with the value
+  for each band. You can change the **EQ** preset, **Amount** (0% = flat,
+  default 50%) and **Compressor**, and see the compressor's gain reduction.
+  **Reverb send** is there too. The EQ preset starts from the source type and the channel's
   name. A channel named *Bass* gets the Bass preset, *Acoustic Gtr* gets Guitar,
   and *Keys* gets Keys/piano. Single drum mics (*Kick*, *Snare*, *Tom*, *Hat*)
   start with EQ Off, because the kit target is for overheads or a stereo kit. Linked pairs share these settings.
@@ -165,8 +174,8 @@ settings**. Some tips:
 - **Tune** appears on Vocal channels. Start around
   **Amount 40–60%, Speed 150–250 ms** for a natural sound. Set **Song key**
   for each song so notes are pulled toward the right scale, or leave it on
-  *Chromatic*. The strip shows the note it hears and the correction in cents
-  (¢). Tuning adds about 20 ms of delay to that one channel.
+  *Chromatic*. Channel settings shows the note it hears and the correction in
+  cents (¢). Tuning adds about 20 ms of delay to that one channel.
 - **Auto mix: ON/OFF** switches to a plain fader mix, for comparison or if
   something sounds wrong.
 - To control it from an **iPad or phone**, start it with `--host 0.0.0.0`. Then

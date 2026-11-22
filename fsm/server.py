@@ -58,6 +58,7 @@ class ControlServer:
                         "types": [{"id": t, "label": PRESETS[t]["label"],
                                    "reverb_db": _f(PRESETS[t]["reverb_db"]),
                                    "leveler_range": PRESETS[t]["leveler_range"],
+                                   "target_db": PRESETS[t]["target_db"],
                                    "ducks_music": PRESETS[t]["ducks_music"]} for t in TYPE_ORDER],
                         "can_save": app.config_path is not None,
                         "keys": KEYS,

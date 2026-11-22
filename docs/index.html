@@ -61,115 +61,62 @@
   </section>
 
   <div id="mixer" hidden>
-    <section class="master card" aria-label="Stream output">
-      <div class="loud">
-        <div class="loud-label">Stream loudness</div>
-        <div class="loud-value"><span id="lufs">–</span><small>LUFS</small></div>
-        <div class="muted" id="lufs-sub">target –16</div>
-      </div>
-      <div class="master-meters">
-        <div class="meter wide"><div class="fill" id="mL"></div><span>L</span></div>
-        <div class="meter wide"><div class="fill" id="mR"></div><span>R</span></div>
-      </div>
-      <div class="master-controls">
-        <label>Target
-          <select id="target">
-            <option value="-14">–14 LUFS (loud, YouTube)</option>
-            <option value="-16">–16 LUFS (recommended)</option>
-            <option value="-18">–18 LUFS (relaxed)</option>
-            <option value="-23">–23 LUFS (broadcast)</option>
-          </select>
-        </label>
-        <label>Reverb return <output id="rvv"></output>
-          <input type="range" id="rv" min="-24" max="6" step="1">
-        </label>
-        <label title="Gentle tone balance and glue compression on the final stream mix">Stream polish
-          <select id="polish"><option value="on">On — gentle tone + glue</option><option value="off">Off</option></select>
-        </label>
-        <label>Song key (vocal tuning)
-          <select id="key"></select>
-        </label>
-      </div>
-      <div class="master-readouts">
-        <button class="pill solo-alert" id="solo-alert" hidden title="Click to clear all solos">SOLO ACTIVE — click to clear</button>
-        <div class="pill" id="speech">Music level normal</div>
-      <div class="pill" id="reverb-state" title="Vocal reverb rests while no instrument, drums or playback is playing">Reverb on</div>
-        <div class="stat"><span>Loudness gain</span><b id="agc">0.0 dB</b></div>
-        <div class="stat"><span>Polish</span><b id="pol">0.0 dB</b></div>
-        <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
-        <div class="stat"><span>Processing load</span><b id="load">–</b></div>
-      </div>
-    </section>
+    <div class="top">
+      <section class="master card" aria-label="Stream output">
+        <div class="loud">
+          <div class="loud-label">Stream loudness</div>
+          <div class="loud-value"><span id="lufs">–</span><small>LUFS</small></div>
+          <div class="muted" id="lufs-sub">target –16</div>
+        </div>
+        <div class="master-meters">
+          <div class="meter wide"><div class="fill" id="mL"></div><span>L</span></div>
+          <div class="meter wide"><div class="fill" id="mR"></div><span>R</span></div>
+        </div>
+        <div class="master-controls">
+          <label>Target
+            <select id="target">
+              <option value="-14">–14 LUFS (loud, YouTube)</option>
+              <option value="-16">–16 LUFS (recommended)</option>
+              <option value="-18">–18 LUFS (relaxed)</option>
+              <option value="-23">–23 LUFS (broadcast)</option>
+            </select>
+          </label>
+          <label>Reverb return <output id="rvv"></output>
+            <input type="range" id="rv" min="-24" max="6" step="1">
+          </label>
+          <label title="Gentle tone balance and glue compression on the final stream mix">Stream polish
+            <select id="polish"><option value="on">On — gentle tone + glue</option><option value="off">Off</option></select>
+          </label>
+          <label>Song key (vocal tuning)
+            <select id="key"></select>
+          </label>
+        </div>
+        <div class="master-readouts">
+          <button class="pill solo-alert" id="solo-alert" hidden title="Click to clear all solos">SOLO ACTIVE — click to clear</button>
+          <div class="pill" id="speech">Music level normal</div>
+        <div class="pill" id="reverb-state" title="Vocal reverb rests while no instrument, drums or playback is playing">Reverb on</div>
+          <div class="stat"><span>Loudness gain</span><b id="agc">0.0 dB</b></div>
+          <div class="stat"><span>Polish</span><b id="pol">0.0 dB</b></div>
+          <div class="stat"><span>Limiter</span><b id="lim">0.0 dB</b></div>
+          <div class="stat"><span>Processing load</span><b id="load">–</b></div>
+        </div>
+      </section>
+      <section class="chpanel card" id="chpanel" aria-label="Channel settings"></section>
+    </div>
 
     <section class="strips" id="strips" aria-label="Channels"></section>
 
-    <p class="hint muted">Tag each channel with what's plugged into it, then press play. Flip <b>Auto mix</b> to hear
-      the difference against a plain fader mix. When it sounds right, use <b>Settings → Download settings</b> and put
-      the file next to the Mac app as <code>config.json</code> — your Sunday mix starts from here.
-      The “auto” figure on each strip is how much the mixer is adjusting it right now; hover it for the breakdown.</p>
+    <p class="hint muted">Each strip has the fader, pan, Mute and Solo. Click a channel's name to open
+      everything else in <b>Channel settings</b> at the top right: its source type, what the automatic level is
+      aiming for, the adaptive EQ, compressor, reverb send and Tune.</p>
   </div>
 </main>
 
-<template id="strip-tpl">
-  <div class="strip card">
-    <div class="strip-head">
-      <span class="num"></span>
-      <span class="led" title="Active"></span>
-    </div>
-    <input class="name" maxlength="32" aria-label="Channel name">
-    <select class="type" aria-label="Source type"></select>
-    <div class="strip-body">
-      <div class="meters">
-        <div class="meter"><div class="fill in"></div></div>
-        <div class="meter"><div class="fill out"></div></div>
-      </div>
-      <div class="fader-wrap">
-        <input type="range" class="fader" min="-40" max="10" step="0.5" aria-label="Fader">
-        <output class="fader-v"></output>
-      </div>
-    </div>
-    <button class="auto" title="">auto <b>0.0</b><i class="lvl-off" hidden> · lvl off</i> <span class="caret">▾</span></button>
-    <div class="auto-panel" hidden>
-      <label class="check"><input type="checkbox" class="al-on"> Auto level</label>
-      <label class="check dm" title="Music steps back while this mic is in use. Untick for a mic that picks up the band, such as a pastor's headset during worship."><input type="checkbox" class="dm-on"> Ducks music</label>
-      <label class="mini" title="How far the mixer may turn this channel up or down">Range <output class="ar-v"></output>
-        <input type="range" class="al-range" min="0" max="24" step="1"></label>
-      <label class="mini" title="How quickly it rides the level. Slower is smoother; faster catches sudden changes.">Speed <output class="as-v"></output>
-        <input type="range" class="al-speed" min="0.5" max="12" step="0.5"></label>
-      <button class="al-reset">Reset to default</button>
-    </div>
-    <button class="tone" title="Tone: adaptive EQ and compressor — click to adjust">
-      <span class="eqbars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="gr">comp 0</span>
-    </button>
-    <div class="tone-panel" hidden>
-      <label class="mini" title="The sound the adaptive EQ steers this channel toward">EQ <select class="eq-preset"></select></label>
-      <label class="mini" title="How strongly it corrects. 0% leaves the channel flat.">EQ amount <output class="ea-v"></output>
-        <input type="range" class="eq-amount" min="0" max="100" step="5"></label>
-      <label class="mini">Compressor <select class="comp-sel"></select></label>
-    </div>
-    <label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.05"></label>
-    <label class="mini rvl">Reverb <input type="range" class="reverb" min="-40" max="0" step="1"></label>
-    <div class="row btns">
-      <button class="mute">Mute</button>
-      <button class="solo" title="Hear only the soloed channels">Solo</button>
-    </div>
-    <div class="row">
-      <label class="link" title="Stereo-link with the channel to the left"><input type="checkbox" class="linkbox"> Link</label>
-      <button class="tune-btn" title="Light pitch correction (vocals)">Tune</button>
-    </div>
-    <div class="tune-panel" hidden>
-      <div class="tune-read" title="Note heard · correction being applied"><b class="tune-note">–</b><span class="tune-cents"></span></div>
-      <label class="mini">Amount <output class="ta-v"></output>
-        <input type="range" class="tune-amount" min="0" max="100" step="5"></label>
-      <label class="mini" title="How quickly notes are pulled in. Slower is gentler and keeps vibrato.">Speed <output class="ts-v"></output>
-        <input type="range" class="tune-speed" min="20" max="500" step="10"></label>
-    </div>
-  </div>
-</template>
 
 <script src="engine.js"></script>
 <script src="wav.js"></script>
 <script src="demo.js"></script>
+<script src="console.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
