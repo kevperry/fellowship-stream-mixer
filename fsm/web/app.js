@@ -118,6 +118,7 @@ function renderMeters(m) {
   $("#pol").textContent = ms.polish === false ? "off" : `${(ms.polish_db || 0).toFixed(1)} dB`;
   $("#load").textContent = `${ms.dsp_load.toFixed(0)}%` + (ms.xruns ? ` · ${ms.xruns} dropouts` : "");
   $("#solo-alert").hidden = !ms.solo_active;
+  $("#key-now").textContent = ms.key_detected || "listening…";
   const kd = $("#key-detected"), auto = (CFG().master.tune_key || "chromatic") === "auto";
   kd.hidden = !auto;
   if (auto) kd.textContent = ms.key_detected ? `Detected: ${ms.key_detected}` : "Listening for the key… (Tune uses any note until then)";
