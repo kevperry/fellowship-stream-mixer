@@ -22,6 +22,7 @@ const EQ_PRESET_LIST = Object.entries(FSM_TONE.eq_presets).map(([id, p]) => ({ i
 const COMP_LIST = Object.entries(FSM_TONE.comp_levels).map(([id, c]) => ({ id, label: c.label }));
 const held = new Map();
 
+const CFG = () => state.cfg;
 function flash(msg) { $("#status").textContent = msg; }
 
 // ------------------------------------------------------------------ storage (best effort)
@@ -265,7 +266,7 @@ function build() {
 function renderMaster() {
   const m = state.cfg.master, sel = $("#target");
   const ks = $("#key");
-  if (!ks.options.length) for (const k of FSM_KEYS) ks.add(new Option(k === "chromatic" ? "Chromatic (any note)" : k, k));
+  if (!ks.options.length) for (const k of FSM_KEYS) ks.add(new Option(k === "chromatic" ? "Chromatic (any note)" : k === "auto" ? "Auto-detect" : k, k));
   ks.value = m.tune_key || "chromatic";
   $("#polish").value = m.polish === false ? "off" : "on";
   const tv = String(Math.round(m.target_lufs));
@@ -295,6 +296,9 @@ function renderMeters(m) {
   $("#pol").textContent = ms.polish === false ? "off" : `${(ms.polish_db || 0).toFixed(1)} dB`;
   $("#load").textContent = `${ms.dsp_load.toFixed(0)}%` + (ms.xruns ? ` · ${ms.xruns} gaps` : "");
   $("#solo-alert").hidden = !ms.solo_active;
+  const kd = $("#key-detected"), auto = (CFG().master.tune_key || "chromatic") === "auto";
+  kd.hidden = !auto;
+  if (auto) kd.textContent = ms.key_detected ? `Detected: ${ms.key_detected}` : "Listening for the key… (Tune uses any note until then)";
   const sp = $("#speech"), ducking = ms.duck_db < -0.5;
   sp.textContent = ducking ? `Speech — music ${ms.duck_db.toFixed(0)} dB` : ms.speech_active ? "Speech detected" : "Music level normal";
   sp.classList.toggle("live", ducking);

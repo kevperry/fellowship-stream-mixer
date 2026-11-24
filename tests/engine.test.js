@@ -231,7 +231,7 @@ test("in-tune singing passes through untouched", () => {
 test("pitch correction respects the key", () => {
   const { pc } = tune(sung(277.18 * Math.pow(2, 20 / 1200), 1.5), 1, "C major");
   assert.equal(pc.note, 62);
-  assert.equal(E.FSM_KEYS.length, 25);
+  assert.equal(E.FSM_KEYS.length, 26);
   assert.equal(E.fsmNoteName(69), "A4");
 });
 
@@ -399,4 +399,27 @@ test("parametric EQ bands and the manual soft gate", () => {
   assert.ok(!g.strips[0].gateOpen && g.strips[0].gateDb < -2 && g.strips[0].gateDb > -5, `soft ${g.strips[0].gateDb}`);
   run(g, [tone(440, 1.5, 0.1 * E.db2lin(-40))]);
   assert.ok(Math.abs(g.strips[0].gateDb + 12) < 1e-6);
+});
+
+test("song key detection finds the scale and drives Auto tune", () => {
+  const note = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  const song = (chords, melody, secs = 30) => {
+    const n = Math.floor(secs * FS), x = new Float64Array(n), r = noise(secs, -50, 7);
+    for (let i = 0; i < n; i++) {
+      const t = i / FS, ch = chords[Math.floor(t / 2) % chords.length];
+      for (const m of ch) for (let h = 1; h <= 6; h++) x[i] += Math.sin(2 * Math.PI * note(m) * h * t) / Math.pow(h, 1.5) * 0.05;
+      x[i] += Math.sin(2 * Math.PI * note(ch[0] - 12) * t) * 0.08 + Math.sin(2 * Math.PI * note(melody[Math.floor(t / 0.5) % melody.length]) * t) * 0.06 + r[i];
+    }
+    return x;
+  };
+  const E_MAJOR = [[[64, 68, 71], [59, 63, 66], [61, 64, 68], [57, 61, 64]], [71, 73, 75, 76, 75, 73, 71, 68]];
+  const kd = new E.KeyDetector(FS, BLOCK), x = song(...E_MAJOR);
+  for (let i = 0; i + BLOCK <= x.length; i += BLOCK) kd.process(x.subarray(i, i + BLOCK), true);
+  assert.equal(kd.root, 4); assert.equal(E.fsmKeyNames(kd.root), "E major / C# minor");
+  const eng = engine(["lead_vocal", "instrument"]);
+  eng.updateChannel(1, { name: "Piano" });
+  eng.updateMaster({ tune_key: "auto" });
+  const b = song(...E_MAJOR, 30);
+  run(eng, [b.map((v) => v * 0.5), b]);
+  assert.equal(eng.readMeters().master.key_detected, "E major / C# minor");
 });

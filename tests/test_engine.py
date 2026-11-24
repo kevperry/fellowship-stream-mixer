@@ -609,3 +609,90 @@ def test_manual_soft_gate():
     eng.update_channel(0, {"gate_threshold": None})                # back to automatic
     run(eng, tone_at(440, 0.5, 0.1)[:, None])
     assert s.gate_threshold is None
+
+
+# ---- song key detection ---------------------------------------------------------------
+
+def progression(chords, melody, secs=40, seed=0, hexp=1.5):
+    """A synthetic song: chords (with overtones and a bass note) changing every 2 s, plus a melody."""
+    rng = np.random.default_rng(seed)
+    n = int(secs * FS)
+    t = np.arange(n) / FS
+    note = lambda m: 440 * 2 ** ((m - 69) / 12)
+    x = np.zeros(n)
+    for i in range(n // FS):
+        ch = chords[(i // 2) % len(chords)]
+        a, b = i * FS, min(n, (i + 1) * FS)
+        for m in ch:
+            for h in range(1, 7):
+                x[a:b] += np.sin(2 * np.pi * note(m) * h * t[a:b]) / h ** hexp * 0.05
+        x[a:b] += np.sin(2 * np.pi * note(ch[0] - 12) * t[a:b]) * 0.08
+    for j in range(int(secs / 0.5)):
+        a, b = int(j * 0.5 * FS), int((j + 1) * 0.5 * FS)
+        x[a:b] += np.sin(2 * np.pi * note(melody[j % len(melody)]) * t[a:b]) * 0.06
+    return x + rng.standard_normal(n) * 0.003
+
+
+SONGS = {   # name: (chords, melody, major-scale root)
+    "G major": ([[67, 71, 74], [62, 66, 69], [64, 67, 71], [60, 64, 67]], [74, 76, 78, 79, 78, 76, 74, 71], 7),
+    "E major": ([[64, 68, 71], [59, 63, 66], [61, 64, 68], [57, 61, 64]], [71, 73, 75, 76, 75, 73, 71, 68], 4),
+    "Bb major": ([[58, 62, 65], [65, 69, 72], [67, 70, 74], [63, 67, 70]], [70, 72, 74, 75, 74, 72, 70, 65], 10),
+    "D minor": ([[62, 65, 69], [58, 62, 65], [65, 69, 72], [60, 64, 67]], [69, 70, 72, 74, 72, 69, 65, 62], 5),
+}
+
+
+@pytest.mark.parametrize("name", list(SONGS))
+def test_key_detector_finds_the_scale(name):
+    from fsm.keydetect import KeyDetector, both_names
+    chords, melody, root = SONGS[name]
+    for hexp in (1.5, 0.8):                    # mellow and bright overtones
+        kd = KeyDetector(FS, BLOCK)
+        x = progression(chords, melody, hexp=hexp)
+        for i in range(0, len(x) - BLOCK + 1, BLOCK):
+            kd.process(x[i:i + BLOCK], True)
+        assert kd.root == root, (name, hexp, kd.key)
+    assert name.split()[0] in both_names(kd.root)       # e.g. "F major / D minor" names D minor
+
+
+def test_key_detector_waits_follows_a_key_change_and_resets_between_songs():
+    from fsm.keydetect import KeyDetector
+    kd = KeyDetector(FS, BLOCK)
+    g = progression(*SONGS["G major"][:2], secs=40)
+    e = progression(*SONGS["E major"][:2], secs=60, seed=3)
+    for i in range(0, 10 * FS, BLOCK):
+        kd.process(g[i:i + BLOCK], True)
+    assert kd.key is None                               # not enough music heard yet
+    for i in range(10 * FS, len(g) - BLOCK + 1, BLOCK):
+        kd.process(g[i:i + BLOCK], True)
+    assert kd.root == 7
+    for i in range(0, len(e) - BLOCK + 1, BLOCK):       # the band modulates / next song
+        kd.process(e[i:i + BLOCK], True)
+    assert kd.root == 4
+    for _ in range(int(21 * FS / BLOCK)):               # a long gap without music: listen fresh
+        kd.process(np.zeros(BLOCK), False)
+    assert kd.key is None
+
+
+def test_auto_key_drives_tune_in_the_engine():
+    eng = make_engine(["lead_vocal", "instrument"])
+    eng.update_channel(1, {"name": "Piano"})            # piano/guitar channels lead the detection
+    eng.update_master({"tune_key": "auto"})
+    chords, melody, root = SONGS["E major"]
+    band = progression(chords, melody, secs=30)
+    run(eng, np.stack([band * 0.5, band], axis=1))
+    m = eng.read_meters()["master"]
+    assert m["key_detected"] == "E major / C# minor" and m["key_confidence"] > 0.6
+    from fsm.pitch import PitchCorrector
+    assert eng.keydet.root == 4
+
+
+def test_key_weights_favour_piano_and_guitar():
+    from fsm.engine import key_weights
+    eng = Engine(cfgmod.normalize({"channels": [
+        cfgmod.channel(input=1, name="Keys", type="instrument"), cfgmod.channel(input=2, name="Acoustic Gtr", type="instrument"),
+        cfgmod.channel(input=3, name="Bass", type="instrument"), cfgmod.channel(input=4, name="WL", type="lead_vocal"),
+        cfgmod.channel(input=5, name="Kick", type="drums"), cfgmod.channel(input=6, name="Pastor", type="speech")]}), FS, BLOCK)
+    assert list(key_weights(eng.strips)) == [1.0, 1.0, 0.25, 0.25, 0.0, 0.0]
+    eng.update_channel(0, {"type": "off"}); eng.update_channel(1, {"type": "off"})
+    run(eng, np.zeros((BLOCK, 6)))
+    assert list(key_weights(eng.strips)) == [0.0, 0.0, 1.0, 1.0, 0.0, 0.0]   # no piano/guitar: everything pitched

@@ -32,6 +32,7 @@ import numpy as np
 from . import config as cfgmod
 from .dsp import (FilterChain, Limiter, LoudnessMeter, Polish, Reverb, biquad, db2lin,
                   highpass_sections, lin2db, power_db)
+from .keydetect import KeyDetector, both_names
 from .pitch import KEYS, VOCAL_TYPES, PitchCorrector, note_name, scale_notes
 from .presets import MUSIC_TYPES, PRESETS
 from .tone import (COMP_LEVELS, EQ_PRESETS, PEQ_LIMITS, AdaptiveEQ, band_sections, default_comp,
@@ -48,6 +49,20 @@ GANGED = ("fader_db", "mute", "trim_db", "reverb_db", "type", "tune", "tune_amou
           "tune_speed_ms", "ducks_music", "auto_level", "level_range", "level_speed",
           "eq_preset", "eq_amount", "comp", "peq", "gate_threshold", "gate_depth",
           "gate_hold_ms", "gate_release_ms")
+
+
+def key_weights(strips) -> np.ndarray:
+    """How much each channel counts towards song-key detection."""
+    chordal = [s.on and s.type == "instrument" and s.eq_preset in ("keys", "guitar") for s in strips]
+    w = []
+    for s, main in zip(strips, chordal):
+        if not s.on or s.type not in ("lead_vocal", "instrument", "playback"):
+            w.append(0.0)
+        elif main or not any(chordal):
+            w.append(1.0)
+        else:
+            w.append(0.25)
+    return np.array(w)
 
 
 def link_group(channels: list, index: int) -> range:
@@ -311,6 +326,7 @@ class Engine:
         m = self.cfg["master"]
         self.limiter = Limiter(self.fs, self.block, m["ceiling_db"])
         self.polish = Polish(self.fs, self.block)
+        self.keydet = KeyDetector(self.fs, self.block)
         self.polish_mix = 1.0 if m.get("polish", True) else 0.0
         self.agc_db = 0.0
         self.agc_prev = 1.0
@@ -396,7 +412,15 @@ class Engine:
         for s, lvl in zip(strips, levels):
             s.detect(float(lvl))
 
-        allowed = scale_notes(m.get("tune_key", "chromatic"))
+        # song key: mainly from piano/keys and guitar (they carry the chords); bass, vocals and
+        # playback count a little; drums and speech are ignored. Raw inputs, so EQ can't colour it.
+        self.keydet.process(raw @ key_weights(strips) if C else np.zeros(n), self.music_active)
+        tk = m.get("tune_key", "chromatic")
+        if tk == "auto":
+            root = self.keydet.root if self.keydet.key else None
+            allowed = tuple(sorted((root + i) % 12 for i in (0, 2, 4, 5, 7, 9, 11))) if root is not None else tuple(range(12))
+        else:
+            allowed = scale_notes(tk)
         for i, s in enumerate(strips):
             if s.tuner is not None and s.type != "off":
                 eq[:, i] = s.apply_tune(eq[:, i], allowed)
@@ -599,6 +623,8 @@ class Engine:
                 "duck_db": round(self.duck_db, 1),
                 "bypass": bool(self.cfg["master"]["bypass"]),
                 "solo_active": bool(self.any_solo),
+                "key_detected": both_names(self.keydet.root) if self.keydet.key else None,
+                "key_confidence": round(self.keydet.confidence, 2) if self.keydet.key else 0.0,
                 "dsp_load": round(self.load * 100.0, 1),
                 "xruns": self.xruns,
                 "sample_rate": self.fs,

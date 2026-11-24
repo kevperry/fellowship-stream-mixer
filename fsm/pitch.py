@@ -25,7 +25,7 @@ import numpy as np
 
 NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
 SCALES = {"major": (0, 2, 4, 5, 7, 9, 11), "minor": (0, 2, 3, 5, 7, 8, 10)}
-KEYS = ["chromatic"] + [f"{n} {s}" for n in NOTE_NAMES for s in ("major", "minor")]
+KEYS = ["auto", "chromatic"] + [f"{n} {s}" for n in NOTE_NAMES for s in ("major", "minor")]
 VOCAL_TYPES = ("lead_vocal",)
 
 FMIN, FMAX = 70.0, 1000.0
@@ -34,7 +34,7 @@ DEADBAND_CENTS = 3.0
 
 def scale_notes(key: str) -> tuple[int, ...]:
     """Pitch classes (0 = C) allowed in ``key``."""
-    if key == "chromatic":
+    if key in ("chromatic", "auto"):    # "auto" is resolved by the engine's key detector
         return tuple(range(12))
     root, scale = key.split()
     r = NOTE_NAMES.index(root)

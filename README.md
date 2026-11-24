@@ -198,8 +198,14 @@ where they apply. Name each channel and choose its type there, then click
   is never saved, so a restart always comes back un‑soloed.
 - **Tune** appears on Vocal channels. Start around
   **Amount 40–60%, Speed 150–250 ms** for a natural sound. Set **Song key**
-  for each song so notes are pulled toward the right scale, or leave it on
-  *Chromatic*. Channel settings shows the note it hears and the correction in
+  for each song so notes are pulled toward the right scale, choose
+  **Auto‑detect**, or leave it on *Chromatic*. Auto‑detect listens mainly to the
+  piano/keys and guitar channels (bass, vocals and playback count a little; drums
+  and speech mics not at all), averaged over about 30 seconds of music. It names
+  the key after about 12 seconds, for example *Detected: B major / G# minor*
+  (a major key and its relative minor use the same notes, so both are shown). It
+  follows a key change after about 6 seconds and starts fresh after 20 seconds
+  without music. Until it's sure, Tune allows any note. Channel settings shows the note it hears and the correction in
   cents (¢). Tuning adds about 20 ms of delay to that one channel.
 - **Auto mix: ON/OFF** switches to a plain fader mix, for comparison or if
   something sounds wrong.

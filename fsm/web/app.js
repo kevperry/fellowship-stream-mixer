@@ -29,6 +29,7 @@ function setMaster(changes) {
   api("/api/master", changes).then((m) => { cfg.master = m; renderMaster(); }).catch((e) => flash(e.message));
 }
 
+const CFG = () => cfg;
 function flash(msg) { $("#status").textContent = msg; }
 
 // ---------------------------------------------------------------- channels (shared console.js)
@@ -47,7 +48,7 @@ function build() {
 function renderMaster() {
   const m = cfg.master;
   const ks = $("#key");
-  if (ks.options.length !== keys.length) { ks.innerHTML = ""; for (const k of keys) ks.add(new Option(k === "chromatic" ? "Chromatic (any note)" : k, k)); }
+  if (ks.options.length !== keys.length) { ks.innerHTML = ""; for (const k of keys) ks.add(new Option(k === "chromatic" ? "Chromatic (any note)" : k === "auto" ? "Auto-detect" : k, k)); }
   ks.value = m.tune_key || "chromatic";
   $("#polish").value = m.polish === false ? "off" : "on";
   $("#target").value = String(Math.round(m.target_lufs));
@@ -117,6 +118,9 @@ function renderMeters(m) {
   $("#pol").textContent = ms.polish === false ? "off" : `${(ms.polish_db || 0).toFixed(1)} dB`;
   $("#load").textContent = `${ms.dsp_load.toFixed(0)}%` + (ms.xruns ? ` · ${ms.xruns} dropouts` : "");
   $("#solo-alert").hidden = !ms.solo_active;
+  const kd = $("#key-detected"), auto = (CFG().master.tune_key || "chromatic") === "auto";
+  kd.hidden = !auto;
+  if (auto) kd.textContent = ms.key_detected ? `Detected: ${ms.key_detected}` : "Listening for the key… (Tune uses any note until then)";
   const sp = $("#speech");
   const ducking = ms.duck_db < -0.5;
   sp.textContent = ducking ? `Speech — music ${ms.duck_db.toFixed(0)} dB` : ms.speech_active ? "Speech detected" : "Music level normal";

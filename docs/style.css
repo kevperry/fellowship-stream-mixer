@@ -360,3 +360,4 @@ button.auto, button.tone { overflow: hidden; white-space: nowrap; }
 .cp-graph { height: 140px; }
 .cp-collapse { margin-left: auto; font-size: 12px; padding: 4px 10px; }
 .chpanel.collapsed > :not(.cp-head) { display: none; }
+.key-detected { margin-top: -4px; font-size: 11.5px; color: var(--fader); }

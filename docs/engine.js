@@ -376,12 +376,12 @@ class Reverb {
 
 const FSM_NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 const FSM_SCALES = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
-const FSM_KEYS = ["chromatic"].concat(...FSM_NOTE_NAMES.map((n) => [`${n} major`, `${n} minor`]));
+const FSM_KEYS = ["auto", "chromatic"].concat(...FSM_NOTE_NAMES.map((n) => [`${n} major`, `${n} minor`]));
 const FSM_VOCAL_TYPES = ["lead_vocal"];
 const PITCH_FMIN = 70, PITCH_FMAX = 1000, DEADBAND_CENTS = 3;
 
 function fsmScaleNotes(key) {
-  if (key === "chromatic") return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  if (key === "chromatic" || key === "auto") return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   const [root, scale] = key.split(" ");
   const r = FSM_NOTE_NAMES.indexOf(root);
   return FSM_SCALES[scale].map((i) => (r + i) % 12).sort((a, b) => a - b);
@@ -616,6 +616,85 @@ class AdaptiveEQ {
   }
 }
 
+
+// ---------------------------------------------------------------- song key detection
+// Port of fsm/keydetect.py: fold the pitched channels' spectrum into 12 pitch classes,
+// average ~30 s of music, find the best-matching major scale (the notes Tune needs),
+// then name it major or relative minor with the Krumhansl-Kessler profiles.
+
+const KK_MAJOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const KK_MINOR = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+const MAJOR_SCALE = [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1];
+function zrows(rows) {
+  return rows.map((r) => { const m = r.reduce((a, b) => a + b, 0) / 12, z = r.map((v) => v - m); const n = Math.hypot(...z); return z.map((v) => v / n); });
+}
+const rot = (a, r) => a.map((_, i) => a[(i - r + 12) % 12]);
+const KEY_TEMPLATES = zrows([...Array(12).keys()].map((r) => rot(KK_MAJOR, r)).concat([...Array(12).keys()].map((r) => rot(KK_MINOR, r))));
+const SCALE_TEMPLATES = zrows([...Array(12).keys()].map((r) => rot(MAJOR_SCALE, r)));
+function corrWith(templates, chroma) {
+  const m = chroma.reduce((a, b) => a + b, 0) / 12, c = chroma.map((v) => v - m), n = Math.hypot(...c);
+  return templates.map((t) => (n < 1e-12 ? 0 : t.reduce((a, v, i) => a + v * c[i], 0) / n));
+}
+function fsmKeyNames(root) { return `${FSM_NOTE_NAMES[root]} major / ${FSM_NOTE_NAMES[(root + 9) % 12].replace("Ab", "G#")} minor`; }
+
+class KeyDetector {
+  constructor(fs, block) {
+    this.fs = fs; this.dt = block / fs;
+    this.N = 1 << Math.round(Math.log2(0.17 * fs));
+    this.buf = new Float64Array(this.N);
+    this.win = Float64Array.from({ length: this.N }, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (this.N - 1)));
+    this.re = new Float64Array(this.N); this.im = new Float64Array(this.N);
+    this.hop = Math.max(1, Math.round(0.1 / this.dt));
+    this.bins = []; this.pc = []; this.wt = [];
+    for (let k = 1; k <= this.N / 2; k++) {
+      const f = k * fs / this.N;
+      if (f < 65 || f > 1000) continue;
+      const midi = 69 + 12 * Math.log2(f / 440), r = Math.round(midi);
+      this.bins.push(k); this.pc.push(((r % 12) + 12) % 12); this.wt.push(Math.cos(Math.PI * (midi - r)) ** 2);
+    }
+    this.reset();
+  }
+  reset() {
+    this.chroma = new Array(12).fill(0); this.heard = 0; this.quiet = 0; this.count = 0;
+    this.key = null; this.root = null; this.confidence = 0; this.candidate = null; this.candidateTime = 0;
+  }
+  process(x, musicActive) {
+    this.buf.copyWithin(0, x.length); this.buf.set(x, this.N - x.length);
+    this.count++;
+    if (!musicActive) {
+      this.quiet += this.dt;
+      if (this.quiet > 20 && this.heard > 0) this.reset();
+      return;
+    }
+    this.quiet = 0;
+    if (this.count % this.hop) return;
+    const re = this.re, im = this.im;
+    for (let i = 0; i < this.N; i++) { re[i] = this.buf[i] * this.win[i]; im[i] = 0; }
+    fft(re, im, false);
+    const frame = new Array(12).fill(0);
+    let tot = 0, peak = 0;
+    this.bins.forEach((k, j) => { const m = Math.hypot(re[k], im[k]); peak = Math.max(peak, m); frame[this.pc[j]] += m * this.wt[j]; });
+    if (peak < 1e-9) return;
+    for (const v of frame) tot += v;
+    const step = this.hop * this.dt;
+    this.heard += step;
+    const a = Math.max(step / 30, step / this.heard);
+    for (let i = 0; i < 12; i++) this.chroma[i] += (frame[i] / (tot + 1e-12) - this.chroma[i]) * a;
+    if (this.heard < 12) return;   // a full chord cycle
+    const sc = corrWith(SCALE_TEMPLATES, this.chroma);
+    let best = 0; for (let i = 1; i < 12; i++) if (sc[i] > sc[best]) best = i;
+    const r = sc[best], kk = corrWith(KEY_TEMPLATES, this.chroma);
+    const name = kk[best] >= kk[12 + (best + 9) % 12] ? `${FSM_NOTE_NAMES[best]} major` : `${FSM_NOTE_NAMES[(best + 9) % 12]} minor`;
+    if (this.key !== null && this.root === best) { this.key = name; this.confidence = r; this.candidate = null; this.candidateTime = 0; return; }
+    if (r < 0.6) { this.candidate = null; this.candidateTime = 0; return; }
+    if (this.key === null) { this.key = name; this.root = best; this.confidence = r; return; }
+    if (r - sc[this.root] < 0.05) return;
+    if (best !== this.candidate) { this.candidate = best; this.candidateTime = 0; }
+    this.candidateTime += step;
+    if (this.candidateTime >= 6) { this.key = name; this.root = best; this.confidence = r; this.candidate = null; this.candidateTime = 0; }
+  }
+}
+
 // ---------------------------------------------------------------- engine
 
 const NF_MIN = -85, NF_MAX = -45, OPEN_ABOVE = 10, CLOSE_ABOVE = 6, NOISE_WINDOW_S = 20;
@@ -767,6 +846,8 @@ class Engine {
     this.postMeter = new LoudnessMeter(fs, block);
     this.limiter = new Limiter(fs, block, this.cfg.master.ceiling_db);
     this.polish = new Polish(fs, block);
+    this.keydet = new KeyDetector(fs, block);
+    this.pitchedSum = new Float64Array(block);
     this.polishMix = this.cfg.master.polish !== false ? 1 : 0;
     this.agcDb = 0; this.agcPrev = 1;
     this.duckDb = 0; this.duckHold = 0; this.speechActive = false; this.anySolo = false;
@@ -821,7 +902,21 @@ class Engine {
     }
     strips.forEach((s, i) => s.detect(levels[i]));
 
-    const allowed = fsmScaleNotes(m.tune_key || "chromatic");
+    // song key: listen to the pitched channels (vocals, instruments, playback; not drums or speech)
+    const ps = this.pitchedSum; ps.fill(0);
+    // mainly piano/keys and guitar (they carry the chords); bass, vocals, playback count a little
+    const chordal = strips.map((s) => s.on && s.type === "instrument" && (s.eqPreset === "keys" || s.eqPreset === "guitar"));
+    const anyChordal = chordal.some(Boolean);
+    strips.forEach((s, k) => {
+      if (!s.on || !["lead_vocal", "instrument", "playback"].includes(s.type)) return;
+      const w = chordal[k] || !anyChordal ? 1 : 0.25;
+      for (let i = 0; i < n; i++) ps[i] += s.raw[i] * w;   // raw input: EQ can't colour the result
+    });
+    this.keydet.process(ps, this.musicActive);
+    const tk = m.tune_key || "chromatic";
+    const root = tk === "auto" && this.keydet.key ? this.keydet.root : null;
+    const allowed = tk !== "auto" ? fsmScaleNotes(tk)
+      : root === null ? fsmScaleNotes("chromatic") : [0, 2, 4, 5, 7, 9, 11].map((i) => (root + i) % 12).sort((a, b) => a - b);
     for (const s of strips) if (s.tuner && s.type !== "off") s.applyTune(allowed);
 
     // solo in place; soloing either side of a linked pair solos both
@@ -997,7 +1092,8 @@ class Engine {
         loudness_gain_db: r1(this.agcDb), polish: this.cfg.master.polish !== false, polish_db: r1(this.polish.grDb), limiter_db: r1(lin2db(this.limiter.lastMinGain)),
         speech_active: this.speechActive, duck_db: r1(this.duckDb),
         music_active: this.musicActive, reverb_resting: this.revGain < 0.5,
-        bypass: !!this.cfg.master.bypass, solo_active: this.anySolo, dsp_load: r1(this.load * 100), xruns: this.xruns,
+        bypass: !!this.cfg.master.bypass, solo_active: this.anySolo,
+        key_detected: this.keydet.key ? fsmKeyNames(this.keydet.root) : null, key_confidence: this.keydet.key ? r1(this.keydet.confidence) : 0, dsp_load: r1(this.load * 100), xruns: this.xruns,
         sample_rate: this.fs, block: this.block,
       },
     };
@@ -1156,6 +1252,6 @@ if (typeof AudioWorkletGlobalScope !== "undefined") {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { fsmResolveCurve, fsmValidatePeq, AdaptiveEQ, FSM_TONE, fsmDefaultEqPreset, fsmDefaultComp, fsmGang, fsmLinkGroup, FSM_GANGED, PitchCorrector, fsmScaleNotes, fsmNoteName, FSM_KEYS, Engine, Limiter, Reverb, LoudnessMeter, FilterChain, biquad, fft, db2lin, lin2db,
+  module.exports = { KeyDetector, fsmKeyNames, fsmResolveCurve, fsmValidatePeq, AdaptiveEQ, FSM_TONE, fsmDefaultEqPreset, fsmDefaultComp, fsmGang, fsmLinkGroup, FSM_GANGED, PitchCorrector, fsmScaleNotes, fsmNoteName, FSM_KEYS, Engine, Limiter, Reverb, LoudnessMeter, FilterChain, biquad, fft, db2lin, lin2db,
     fsmBlockSize, fsmNormalize, fsmGuessType, FSM_PRESETS, FSM_TYPE_ORDER, FSM_CHANNEL_DEFAULTS };
 }
